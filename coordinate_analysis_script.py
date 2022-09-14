@@ -1,5 +1,5 @@
-from pulse_script import PhaseTimeStream
-from loop import Resonator, swenson_formula
+from mkidnoiseanalysis import swenson_formula
+from resonator import Resonator
 import numpy as np
 from matplotlib import pyplot as plt
 
@@ -24,9 +24,9 @@ fsweep_params = {'fc': 4.0012e9,  # center frequency [Hz]
 
 res = Resonator(**res_params)
 res.fsweep(**fsweep_params)
-s21 = res.compute_s21()
+s21 = res.s21
 res.fvec = res.f0
-s210 = res.compute_s21()
+s210 = res.s21
 
 
 def pulse(t, t0, tf=30):
@@ -45,7 +45,7 @@ dqi_inv = -photon * 2e-5
 res.fvec = res_params['f0']
 res.f0 += dfr
 res.qi = (res.qi**-1 + dqi_inv)**-1
-s21_photon = res.compute_s21()
+s21_photon = res.s21
 
 
 def lowpass(s21, f0, q, dt):
