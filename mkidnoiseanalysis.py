@@ -41,7 +41,7 @@ def gen_amp_noise(points, snr):
 #    return tls_noise
 
 
-def plot_psd(data, fs=2e6, fres=1e3, **kwargs):
+def plot_psd(data, fs=2e6, fres=1e3, ax=None, fig=None, **kwargs):
     plt.figure()
     default = {'fs': fs, 'nperseg': fs / fres}
     default.update(kwargs)

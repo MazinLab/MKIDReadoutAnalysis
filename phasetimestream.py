@@ -30,7 +30,7 @@ class PhaseTimeStream:
         self.tls_noise = None
         self.photon_pulse = None
 
-    def plot_phasetime(self, data):
+    def plot_phasetime(self, data, ax=None, fig=None):
         plt.figure()
         plt.plot(self.tvec * 1e6, data)
         plt.xlabel('time (usec)')
@@ -41,7 +41,7 @@ class PhaseTimeStream:
         tp = np.linspace(0, 10 * tf, int(10 * tf + 1))  # pulse duration
         self.photon_pulse = -tf * (np.exp(-tp / tf) - np.exp(-tp / tr)) / (tf - tr)
 
-    def plot_pulse(self):
+    def plot_pulse(self, ax=None, fig=None):
         plt.figure()
         plt.plot(self.photon_pulse)
         plt.xlabel('Time (usec)')

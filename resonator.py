@@ -1,71 +1,108 @@
-from logging import getLogger
 import numpy as np
 from matplotlib import pyplot as plt
 from mkidnoiseanalysis import swenson_formula
 from phasetimestream import PhaseTimeStream
 
 
-class Resonator:
-    def __init__(self, **res_params):
-        self.f0 = res_params['f0']  # resonance frequency
-        self.qi = res_params['qi']  # internal quality factor
-        self.qc = res_params['qc']  # coupling quality factor
-        self.xa = res_params['xa']  # resonance fractional asymmetry
-        self.a = res_params['a']  # inductive nonlinearity
-        self.alpha = res_params['alpha']  # IQ mixer amplitude imbalance
-        self.beta = res_params['beta']  # IQ mixer phase imbalance
-        self.gain0 = res_params['gain0']  # gain polynomial coefficients
-        self.gain1 = res_params['gain1']
-        self.gain2 = res_params['gain2']
-        self.phase0 = res_params['phase0']  # phase polynomial coefficients
-        self.tau = res_params['tau']
+class Resonance:
+    def __init__(self, f0=4.0012e9, qi=200000, qc=15000, xa=0.5, a=0):
+        self.f0 = f0  # resonance frequency
+        self.qi = qi  # internal quality factor
+        self.qc = qc  # coupling quality factor
+        self.xa = xa  # resonance fractional asymmetry
+        self.a = a  # inductive nonlinearity
 
-        self.increasing = None
-        self.phase1 = None
-        self.points = None
-        self.span = None
-        self.fvec = None
-        self.fc = None
 
-    def fsweep(self, **fsweep_params):
-        self.increasing = fsweep_params['increasing']  # fsweep direction
-        self.fc = fsweep_params['fc']  # center frequency [Hz]
-        self.points = fsweep_params['points']  # sweep points
-        self.span = fsweep_params['span']  # sweep bandwidth [points]
-        self.fvec = np.linspace(self.fc - 2 * self.span / self.points,
+class MixerImbalance:
+    def __init__(self, alpha=1., beta=0.):
+        self.alpha = alpha  # amplitude
+        self.beta = beta  # phase
+
+
+class RFElectronics:
+    def __init__(self, gain: (np.poly1d, tuple) = (3.0, 0, 0), phase_delay=0, cable_delay=50e-9):
+        """
+        gain: np.poly1D (3 coefficients is sufficient)
+        phase0: total loop rotation [radians]
+        cable_delay: cable delay [sec]
+        """
+        if isinstance(gain, tuple):
+            gain = np.poly1d(*gain)
+        self.gain = gain  # gain polynomial coefficients
+        self.phase_delay = phase_delay  # phase polynomial coefficients (total loop rotation) [radians]
+        self.cable_delay = cable_delay  # cable delay
+
+
+class FrequencyGrid:
+    """
+    fc: center frequency [Hz]
+    points: sweep points
+    span: sweep bandwidth [Hz]
+    """
+
+    def __init__(self, fc=4.0012e9, points=1000, span=500e6):
+        self.fc = fc  # center frequency [Hz]
+        self.points = points  # sweep points
+        self.span = span  # sweep bandwidth [points]
+        self.grid = np.linspace(self.fc - 2 * self.span / self.points,
                                 self.fc + 2 * self.span / self.points,
                                 self.points)
-        self.phase1 = -2 * np.pi * self.fc * self.tau
 
-        return self.fvec
+    @property
+    def increasing(self):
+        return self.grid[1] > self.grid[0]
 
-    def background(self, f):
-        xm = (f - self.fc) / self.fc
-        xg = (f - self.f0) / self.f0
-        q = (self.qi ** -1 + self.qc ** -1) ** -1
-        gain = self.gain0 + self.gain1 * xm + self.gain2 * xm ** 2
-        phase = np.exp(1j * (self.phase0 + self.phase1 * xm))
+
+class Noise:
+    """noise"""
+
+    def __init__(self, tls, amplifier, line):
+        self.tls = tls
+        self.amplifier = amplifier
+        self.line = line
+
+
+class MeasureResonator:
+    def __init__(self, res: Resonance,
+                 mixer: MixerImbalance,
+                 freq: FrequencyGrid,
+                 rf: RFElectronics):
+        """Note that arguments aren't copied and may be mutated by method calls!"""
+        self.freq = freq
+        self.mixer = mixer
+        self.rf = rf
+        self.res = res
+
+    @property
+    def res_phase(self):
+        """need to ask Nick what this is called. He called it "phase1" """
+        return -2 * np.pi * self.freq.fc * self.rf.cable_delay
+
+    @property
+    def background(self):
+        xm = self.freq.grid / self.res.f0 - 1
+        gain = self.rf.gain(xm)
+        phase = np.exp(1j * (self.rf.phase_delay + self.res_phase * xm))
         return gain * phase
 
     @property
     def s21(self):
-        xm = (self.fvec - self.fc) / self.fc
-        xg = (self.fvec - self.f0) / self.f0
-        q = (self.qi ** -1 + self.qc ** -1) ** -1
-        xn = swenson_formula(q * xg, self.a, increasing=self.increasing) / q
+        xm = (self.freq.grid - self.freq.fc) / self.freq.fc
+        xg = (self.freq.grid - self.res.f0) / self.res.f0
+        q = (self.res.qi ** -1 + self.res.qc ** -1) ** -1
+        xn = swenson_formula(q * xg, self.res.a, self.freq.increasing) / q
 
-        gain = self.gain0 + self.gain1 * xm + self.gain2 * xm ** 2
-        phase = np.exp(1j * (self.phase0 + self.phase1 * xm))
-        q_num = self.qc + 2 * 1j * self.qi * self.qc * (xn + self.xa)
-        q_den = self.qi + self.qc + 2 * 1j * self.qi * self.qc * xn
-        return gain * phase * (q_num / q_den)
+        phase = np.exp(1j * (self.rf.phase_delay + self.res_phase * xm))
+        q_num = self.res.qc + 2 * 1j * self.res.qi * self.res.qc * (xn + self.res.xa)
+        q_den = self.res.qi + self.res.qc + 2 * 1j * self.res.qi * self.res.qc * xn
+        return self.rf.gain(xm) * phase * (q_num / q_den)
 
-    def plot_trans(self):
+    def plot_trans(self, ax=None, fig=None):
         plt.rcParams.update({'font.size': 12})
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 5))
-        fig.suptitle(f'{self.f0 * 1e-9} GHz Simulated Resonator', fontsize=15)
+        fig.suptitle(f'{self.res.f0 * 1e-9} GHz Simulated Resonator', fontsize=15)
 
-        ax1.plot(self.fvec * 1e-9, 20 * np.log10(np.abs(self.s21)), linewidth=4)
+        ax1.plot(self.freq.grid * 1e-9, 20 * np.log10(np.abs(self.s21)), linewidth=4)
         ax1.set_ylabel('|S21| [dB]')
         ax1.set_xlabel('Frequency [GHz]')
         ax1.set_title('Transmission')
@@ -78,11 +115,11 @@ class Resonator:
         fig.tight_layout()
 
 
-class ResonatorResponse(Resonator):
-    def __init__(self, resonator: Resonator, phase_timestream: PhaseTimeStream, **res_params):
-        super().__init__(**res_params)  # might not need this?
-        self.dfr = phase_timestream.data * 1e5  # fractional detuning of the resonance frequency?
-        self.f0 = resonator.f0 + self.dfr  # change in resonance frequency
+class ResonatorResponse(MeasureResonator):
+    def __init__(self, phase_timestream: PhaseTimeStream, noise: Noise, *args):
+        super().__init__(*args),
+        self.dfr = phase_timestream.data * 1e5 + noise.tls  # fractional detuning of the resonance frequency?
+        self.f0 = self.res.f0 + self.dfr  # change in resonance frequency
         self.dqi_inv = -phase_timestream.data * 2e-5  # quasiparticle density change
         self.qi = (resonator.qi ** -1 + self.dqi_inv) ** -1
         self.q0 = (self.qi[0] ** -1 + resonator.qc ** -1) ** -1
@@ -95,35 +132,38 @@ class ResonatorResponse(Resonator):
     @property
     def iq_response_nonoise(self):
         """Effectivly a lowpass filter."""
-        dt = (self.fvec[1] - self.fvec[0]) * 1e-6
+        dt = (self.freq.grid[1] - self.freq.grid[0]) * 1e-6
         f = np.fft.fftfreq(self.s21.size, d=dt)
         return np.fft.ifft(np.fft.fft(self.s21) / (1 + 2j * self.q0 * f / self.f0))
 
-    def set_iq_noise(self, noise):
-        self.i_noise = self.iq_response_nonoise.real + noise
-        self.q_noise = self.iq_response_nonoise.imag + noise
+    @property
+    def noisy_iq_response(self):
+        return self.iq_response_nonoise + self._noise
 
-    def set_data(self):
-        self.normalized_iq = (self.i_noise + 1j * self.q_noise) / self.background(self.f0)
-        self.normalized_s21 = self.s21_0 / self.background(self.f0)
+    @property
+    def normalized_s21(self):
+        return self.s21_0 / self.background(self.f0)
 
-    def nick_coordinate_transform(self):
-        z1 = (1 - self.normalized_iq - self.q0 / (2 * self.qc) + 1j * self.q0 * self.xa) / \
-             (1 - self.normalized_s21 - self.q0 / (2 * self.qc) + 1j * self.q0 * self.xa)
+    @property
+    def normalized_iq(self):
+        return self.noisy_iq_response / self.background(self.f0)
+
+    @property
+    def basic_coordinate_transform(self):
+        z1 = (1 - self.normalized_iq - self.q0 / (2 * self.res.qc) + 1j * self.q0 * self.res.xa) / \
+             (1 - self.normalized_s21 - self.q0 / (2 * self.res.qc) + 1j * self.q0 * self.res.xa)
         theta1 = np.arctan2(z1.imag, z1.real)
-        d1 = (np.abs(1 - self.normalized_iq - self.q0 / (2 * self.qc) + 1j * self.q0 * self.xa) /
-              np.abs(self.q0 / (2 * self.qc) - 1j * self.q0 * self.xa)) - 1
+        d1 = (np.abs(1 - self.normalized_iq - self.q0 / (2 * self.res.qc) + 1j * self.q0 * self.res.xa) /
+              np.abs(self.q0 / (2 * self.res.qc) - 1j * self.q0 * self.res.xa)) - 1
         return theta1, d1
 
-    def basic_coordinate_transformation(self):
-        xn = swenson_formula(0, self.a, increasing=self.increasing) / self.q0
-        theta2 = -4 * self.q0 / (1 + 4 * self.q0 ** 2 * xn ** 2) * \
-                 ((self.normalized_iq.imag + 2 * self.qc * self.xa *
-                   (self.normalized_iq.real - 1)) / (2 * self.qc *
-                                                     np.abs(1 - (self.normalized_iq / self.background(
-                                                         self.f0))) ** 2) - xn)
+    @property
+    def nick_coordinate_transformation(self):
+        xn = swenson_formula(0, self.res.a, self.freq.increasing) / self.q0
+        theta2 = -4 * self.q0 / (1 + 4 * self.q0 ** 2 * xn ** 2) * ((self.normalized_iq.imag + 2 * self.res.qc * self.res.xa * (self.normalized_iq.real - 1)) / (2 * self.res.qc * np.abs(1 - (self.normalized_iq / self.background(self.f0))) ** 2) - xn)
         d2 = -2 * self.q0 / (1 + 4 * self.q0 ** 2 * xn ** 2) * ((self.normalized_iq.real - np.abs(
-            self.normalized_iq) ** 2 + 2 * self.qc * self.xa * self.normalized_iq.imag) /
-                                                                (self.qc * np.abs(1 - self.normalized_iq) ** 2) - 1 /
+            self.normalized_iq) ** 2 + 2 * self.res.qc * self.res.xa * self.normalized_iq.imag) /
+                                                                (self.res.qc * np.abs(
+                                                                    1 - self.normalized_iq) ** 2) - 1 /
                                                                 self.qi[0])
         return theta2, d2

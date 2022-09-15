@@ -31,7 +31,7 @@ class MKIDReadout:
         self.trig = trig
         return self.trig
 
-    def plot_triggers(self, phase_data: PhaseTimeStream, data, energies=False):
+    def plot_triggers(self, phase_data: PhaseTimeStream, data, energies=False, ax=None, fig=None):
         plt.figure()
         plt.plot(phase_data.tvec * 1e6, data)
         plt.plot(phase_data.tvec[self.trig] * 1e6, data[self.trig], '.')
@@ -48,7 +48,7 @@ class MKIDReadout:
         self.photon_energy_idx = np.argmin(trig_views, axis=1) + np.nonzero(self.trig[:holdoff_views.shape[0]])[0]
         return self.photon_energies
 
-    def plot_energies(self):
+    def plot_energies(self, ax=None, fig=None):
         plt.figure()
         plt.hist(self.photon_energies, bins='auto', density=True)
         plt.xlabel('Phase peak (need to change this to energy?)')
