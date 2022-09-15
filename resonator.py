@@ -6,25 +6,59 @@ from phasetimestream import PhaseTimeStream
 
 class Resonator:
     def __init__(self, f0=4.0012e9, qi=200000, qc=15000, xa=0.5, a=0):
-        self.f0 = f0  # resonance frequency
-        self.qi = qi  # internal quality factor
-        self.qc = qc  # coupling quality factor
-        self.xa = xa  # resonance fractional asymmetry
-        self.a = a  # inductive nonlinearity
+        """
+        A class to represent one MKID resonator.
+        ...
+        Attributes:
+        -----------------
+        @type f0: float
+            resonance frequency [Hz]
+        @type qi: float
+            total loop rotation [radians]
+        @type qc: float
+            cable delay [sec]
+        @type xa: float
+            inductive nonlinearlity (reference??)
+        @type a: float
+            resonance fractional asymmetry
+        """
+        self.f0 = f0
+        self.qi = qi
+        self.qc = qc
+        self.xa = xa
+        self.a = a
 
 
 class MixerImbalance:
-    def __init__(self, alpha=1., beta=0.):
-        self.alpha = alpha  # amplitude
-        self.beta = beta  # phase
+    """
+    A class to represent the IQ Mixer imbalance present in the MKID measurment chain.
+    Currently unused.
+    ...
+    Attributes:
+    -----------------
+    @type amplitude: float
+        IQ Mixer amplitude imbalance
+    @type phase: float
+        IQ Mixer phase imbalance
+    """
+    def __init__(self, amplitude=1., phase=0.):
+        self.amplitude = amplitude
+        self.phase = phase
 
 
 class RFElectronics:
     def __init__(self, gain: (np.poly1d, tuple) = (3.0, 0, 0), phase_delay=0, cable_delay=50e-9):
         """
-        gain: np.poly1D (3 coefficients is sufficient)
-        phase0: total loop rotation [radians]
-        cable_delay: cable delay [sec]
+        A class to represent effects of RF cabling and amplifiers on MKID readout.
+        ...
+        Attributes:
+        -----------------
+        @type gain: np.poly1D
+            gain polynomial coefficients
+        @type phase_delay: float
+            total loop rotation [radians]
+        @type cable_delay: float
+            cable delay [sec]
         """
         if isinstance(gain, tuple):
             gain = np.poly1d(*gain)
@@ -35,9 +69,16 @@ class RFElectronics:
 
 class FrequencyGrid:
     """
-    fc: center frequency [Hz]
-    points: sweep points
-    span: sweep bandwidth [Hz]
+    A class to represent the frequency sweep settings used to read out an MKID resonator.
+    ...
+    Attributes:
+    --------------
+    @type fc: float
+        center frequency [Hz]
+    @type points: int
+        sweep points
+    @type span: float
+        sweep bandwidth [Hz]
     """
 
     def __init__(self, fc=4.0012e9, points=1000, span=500e6):
@@ -53,23 +94,25 @@ class FrequencyGrid:
         return self.grid[1] > self.grid[0]
 
 
-class Noise:
-    """noise"""
-
-    def __init__(self, tls, amplifier, line):
-        self.tls = tls
-        self.amplifier = amplifier
-        self.line = line
-
-
 class MeasureResonator:
     def __init__(self, res: Resonator,
-                 mixer: MixerImbalance,
                  freq: FrequencyGrid,
                  rf: RFElectronics):
-        """Note that arguments aren't copied and may be mutated by method calls!"""
+        """
+        A class to perform resonator measurments.
+        ...
+        Attributes:
+           @type res : Resonator
+                MKID resonator properties.
+            @type freq: FrequencyGrid
+                Parameters for frequency sweep.
+            @type rf: RFElectronics
+                Cable delay and gain offset introduced by rf signal chain.
+
+        Note: Arguments aren't copied and may be mutated by method calls!
+        """
+
         self.freq = freq
-        self.mixer = mixer
         self.rf = rf
         self.res = res
 
@@ -116,6 +159,21 @@ class MeasureResonator:
 
 
 class ResonatorResponse(MeasureResonator):
+    """
+    A class to capture the response of an MKID resonator when it's hit with photons.
+    ...
+    Inputs:
+        @type phase_timestream: PhaseTimeStream
+           Photon impacts expressed as resonator phase timeseries
+        @type res : Resonator
+            MKID resonator properties.
+        @type freq: FrequencyGrid
+            Parameters for frequency sweep.
+        @type rf: RFElectronics
+            Cable delay and gain offset introduced by rf signal chain.
+
+        Note: Arguments aren't copied and may be mutated by method calls!
+    """
     def __init__(self, phase_timestream: PhaseTimeStream, *args):
         super().__init__(*args),
         self.dfr = phase_timestream.data * 1e5  # check with nick fractional detuning of the resonance frequency?

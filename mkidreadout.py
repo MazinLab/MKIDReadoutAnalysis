@@ -7,7 +7,7 @@ from logging import getLogger
 
 
 class MKIDReadout:
-    """ A object containing readout functions
+    """ A class containing readout functions and their specifications.
 """
 
     def __init__(self):

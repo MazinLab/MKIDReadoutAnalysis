@@ -7,13 +7,21 @@ from logging import getLogger
 
 class PhaseTimeStream:
     """ A time series containing photon pulses.
+    ...
     Attributes:
-     - fs: float, sample rate [Hz]
-     - ts: float, sample time [uSec]
-     - tvec: 1D np.array, time vector [Sec]
-     - points: number of samples [None]
-     - raw_phase_data: phase timestream
-     - photon_arrivals: boolean 1D np.array, whether or not a photon arrived in that time step."""
+     @type fs: float
+         sample rate [Hz]
+     @type ts: float
+         sample time [uSec]
+     @type tvec: np.array
+         time vector [Sec]
+     @type points: int
+         number of samples
+     @type raw_phase_data: np.array
+         phase timestream with no added noise
+     @type photon_arrivals: np.array of booleans
+          whether or not a photon arrived in that time step
+     """
 
     def __init__(self, fs, ts, seed=2):
         self.fs = fs
@@ -24,8 +32,6 @@ class PhaseTimeStream:
         self.rng = np.random.default_rng(seed=seed)
         self.data = None  # add other
         self._holdoff = None
-        self.psd = None
-        self.optimal_filter = None
         self.photon_arrivals = None
         self.tls_noise = None
         self.photon_pulse = None
