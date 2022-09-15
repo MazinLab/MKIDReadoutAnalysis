@@ -121,13 +121,13 @@ class ResonatorResponse(MeasureResonator):
         self.dfr = phase_timestream.data * 1e5 + noise.tls  # fractional detuning of the resonance frequency?
         self.f0 = self.res.f0 + self.dfr  # change in resonance frequency
         self.dqi_inv = -phase_timestream.data * 2e-5  # quasiparticle density change
-        self.qi = (resonator.qi ** -1 + self.dqi_inv) ** -1
-        self.q0 = (self.qi[0] ** -1 + resonator.qc ** -1) ** -1
-        self.i_noise = None
-        self.q_noise = None
-        self.s21_0 = resonator.s21
-        self.normalized_s21 = None
-        self.normalized_iq = None
+        self.qi = (self.res.qi ** -1 + self.dqi_inv) ** -1
+        self.q0 = (self.qi[0] ** -1 + self.res.qc ** -1) ** -1
+        self._noise = noise
+
+    @property
+    def s21_0(self):
+        return super().s21
 
     @property
     def iq_response_nonoise(self):
