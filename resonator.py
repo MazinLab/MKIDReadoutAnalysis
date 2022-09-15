@@ -130,14 +130,16 @@ class MeasureResonator:
 
     @property
     def s21(self):
-        xm = (self.freq.grid - self.freq.fc) / self.freq.fc
-        xg = (self.freq.grid - self.res.f0) / self.res.f0
-        q = (self.res.qi ** -1 + self.res.qc ** -1) ** -1
-        xn = swenson_formula(q * xg, self.res.a, self.freq.increasing) / q
+        xm = self.freq.grid/self.freq.fc - 1  #TODO this should be a property or attribute of self.freq
+        xg = self.freq.grid/self.f0 - 1
+        q = (self.qi ** -1 + self.res.qc ** -1) ** -1  #TODO this should be a property/attribute of self.res
+
+        xn = swenson_formula(q * xg, self.res.a, self.freq.increasing) / q  #TODO xg's ordering will change with
+        # freq.increasing, swenson formula can figure that out on its own, no?
 
         phase = np.exp(1j * (self.rf.phase_delay + self.res_phase * xm))
-        q_num = self.res.qc + 2 * 1j * self.res.qi * self.res.qc * (xn + self.res.xa)
-        q_den = self.res.qi + self.res.qc + 2 * 1j * self.res.qi * self.res.qc * xn
+        q_num = self.res.qc + 2 * 1j * self.qi * self.res.qc * (xn + self.res.xa)
+        q_den = self.qi + self.res.qc + 2 * 1j * self.qi * self.res.qc * xn
         return self.rf.gain(xm) * phase * (q_num / q_den)
 
     def plot_trans(self, ax=None, fig=None):
@@ -157,6 +159,14 @@ class MeasureResonator:
 
         fig.tight_layout()
 
+    @property
+    def f0(self):
+        return self.res.f0
+
+    @property
+    def qi(self):
+        return self.res.qi
+
 
 class ResonatorResponse(MeasureResonator):
     """
@@ -175,17 +185,29 @@ class ResonatorResponse(MeasureResonator):
         Note: Arguments aren't copied and may be mutated by method calls!
     """
     def __init__(self, phase_timestream: PhaseTimeStream, *args):
-        super().__init__(*args),
+        super().__init__(*args)
+
+        # #TODO this seems poor, seems like it should be phase_timestrea.fractional_detuning
         self.dfr = phase_timestream.data * 1e5  # check with nick fractional detuning of the resonance frequency?
-        self.f0 = self.res.f0 + self.dfr  # change in resonance frequency
+
+        self.res.f0 = self.res.f0 + self.dfr  # change in resonance frequency
         self.dqi_inv = -phase_timestream.data * 2e-5  # quasiparticle density change
-        self.qi = (self.res.qi ** -1 + self.dqi_inv) ** -1
         self.q0 = (self.qi[0] ** -1 + self.res.qc ** -1) ** -1
         self._tlsnoise = phase_timestream.tls_noise
 
     @property
+    def f0(self):
+        return super().f0 + self.dfr
+
+    @property
+    def qi(self):
+        return 1/(super().qi ** -1 + self.dqi_inv)
+
+    @property
     def s21_0(self):
-        return super().s21
+        return super().s21 #TODO I honestly don't recall if the super() call of s21 will evaluate e.g. f0 within the
+        # namespace of this or of super(). if the latter then the answer will be wrong and its time to read python
+        # class docs, sigh
 
     @property
     def iq_response_nonoise(self):
@@ -225,5 +247,3 @@ class ResonatorResponse(MeasureResonator):
                                                                     1 - self.normalized_iq) ** 2) - 1 /
                                                                 self.qi[0])
         return theta2, d2
-
-
