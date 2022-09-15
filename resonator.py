@@ -4,7 +4,7 @@ from mkidnoiseanalysis import swenson_formula
 from phasetimestream import PhaseTimeStream
 
 
-class Resonance:
+class Resonator:
     def __init__(self, f0=4.0012e9, qi=200000, qc=15000, xa=0.5, a=0):
         self.f0 = f0  # resonance frequency
         self.qi = qi  # internal quality factor
@@ -63,7 +63,7 @@ class Noise:
 
 
 class MeasureResonator:
-    def __init__(self, res: Resonance,
+    def __init__(self, res: Resonator,
                  mixer: MixerImbalance,
                  freq: FrequencyGrid,
                  rf: RFElectronics):
@@ -116,14 +116,14 @@ class MeasureResonator:
 
 
 class ResonatorResponse(MeasureResonator):
-    def __init__(self, phase_timestream: PhaseTimeStream, noise: Noise, *args):
+    def __init__(self, phase_timestream: PhaseTimeStream, *args):
         super().__init__(*args),
-        self.dfr = phase_timestream.data * 1e5 + noise.tls  # fractional detuning of the resonance frequency?
+        self.dfr = phase_timestream.data * 1e5  # check with nick fractional detuning of the resonance frequency?
         self.f0 = self.res.f0 + self.dfr  # change in resonance frequency
         self.dqi_inv = -phase_timestream.data * 2e-5  # quasiparticle density change
         self.qi = (self.res.qi ** -1 + self.dqi_inv) ** -1
         self.q0 = (self.qi[0] ** -1 + self.res.qc ** -1) ** -1
-        self._noise = noise
+        self._tlsnoise = phase_timestream.tls_noise
 
     @property
     def s21_0(self):
@@ -138,7 +138,7 @@ class ResonatorResponse(MeasureResonator):
 
     @property
     def noisy_iq_response(self):
-        return self.iq_response_nonoise + self._noise
+        return self.iq_response_nonoise.real + self._tlsnoise + 1j*(self.iq_response_nonoise.imag + self._tlsnoise)
 
     @property
     def normalized_s21(self):
@@ -167,3 +167,5 @@ class ResonatorResponse(MeasureResonator):
                                                                     1 - self.normalized_iq) ** 2) - 1 /
                                                                 self.qi[0])
         return theta2, d2
+
+
