@@ -5,8 +5,9 @@ from scipy import stats
 from scipy.signal import welch
 
 
-def swenson_formula(y0, a, increasing=True):
+def swenson_formula(y0, a):
     """doi: 10.1063/1.4903855"""
+    increasing = y0[1] > y0[0]
     y0 = np.atleast_1d(y0)
     y = np.empty_like(y0)
     for i, y0_i in enumerate(y0):
