@@ -189,14 +189,12 @@ class ResonatorResponse(MeasureResonator):
 
         # #TODO this seems poor, seems like it should be phase_timestrea.fractional_detuning
         self.dfr = phase_timestream.data * 1e5  # check with nick fractional detuning of the resonance frequency?
-
-        self.res.f0 = self.res.f0 + self.dfr  # change in resonance frequency
         self.dqi_inv = -phase_timestream.data * 2e-5  # quasiparticle density change
         self.q0 = (self.qi[0] ** -1 + self.res.qc ** -1) ** -1
         self._tlsnoise = phase_timestream.tls_noise
 
     @property
-    def f0(self):
+    def delta_f(self):
         return super().f0 + self.dfr
 
     @property
@@ -214,7 +212,7 @@ class ResonatorResponse(MeasureResonator):
         """Effectivly a lowpass filter."""
         dt = (self.freq.grid[1] - self.freq.grid[0]) * 1e-6
         f = np.fft.fftfreq(self.s21.size, d=dt)
-        return np.fft.ifft(np.fft.fft(self.s21) / (1 + 2j * self.q0 * f / self.f0))
+        return np.fft.ifft(np.fft.fft(self.s21) / (1 + 2j * self.q0 * f / self.f0[0]))
 
     @property
     def noisy_iq_response(self):
