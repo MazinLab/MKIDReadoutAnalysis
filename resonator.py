@@ -15,27 +15,6 @@ def compute_s21(rf: RFElectronics, freq: FrequencyGrid, res: Resonator):
     return rf.gain(freq.xm) * phase * (q_num / q_den)
 
 
-class RFElectronics:
-    def __init__(self, gain: (np.poly1d, tuple) = (3.0, 0, 0), phase_delay=0, cable_delay=50e-9):
-        """
-        A class to represent effects of RF cabling and amplifiers on MKID readout.
-        ...
-        Attributes:
-        -----------------
-        @type gain: np.poly1D
-            gain polynomial coefficients
-        @type phase_delay: float
-            total loop rotation [radians]
-        @type cable_delay: float
-            cable delay [sec]
-        """
-        if isinstance(gain, tuple):
-            gain = np.poly1d(*gain)
-        self.gain = gain  # gain polynomial coefficients
-        self.phase_delay = phase_delay  # phase polynomial coefficients (total loop rotation) [radians]
-        self.cable_delay = cable_delay  # cable delay
-
-
 class FrequencyGrid:
     """
     A class to represent the frequency sweep settings used to read out an MKID resonator.
@@ -62,9 +41,36 @@ class FrequencyGrid:
     def xm(self):
         return self.grid / self.fc - 1
 
-    def phase1(self, rf: RFElectronics):
+
+class RFElectronics:
+    def __init__(self, gain: (np.poly1d, tuple) = (3.0, 0, 0), phase_delay=0, cable_delay=50e-9):
+        """
+        A class to represent effects of RF cabling and amplifiers on MKID readout.
+        ...
+        Attributes:
+        -----------------
+        @type gain: np.poly1D
+            gain polynomial coefficients
+        @type phase_delay: float
+            total loop rotation [radians]
+        @type cable_delay: float
+            cable delay [sec]
+        """
+        if isinstance(gain, tuple):
+            gain = np.poly1d(*gain)
+        self.gain = gain  # gain polynomial coefficients
+        self.phase_delay = phase_delay  # phase polynomial coefficients (total loop rotation) [radians]
+        self.cable_delay = cable_delay  # cable delay
+
+    def phase1(self, freq: FrequencyGrid):
         """need to ask Nick what this is called. He called it "phase1" """
-        return -2 * np.pi * self.fc * rf.cable_delay
+        return -2 * np.pi * freq.fc * self.cable_delay
+
+    def background(self, f0, freq: FrequencyGrid):
+        xm = freq.grid / f0 - 1
+        gain = self.gain(xm)
+        phase = np.exp(1j * (self.phase_delay + self.phase1(freq) * xm))
+        return gain * phase
 
 
 class Resonator:
@@ -93,10 +99,6 @@ class Resonator:
 
     def s21(self, freq: FrequencyGrid, rf: RFElectronics):
         return compute_s21(rf, freq, self)
-
-    def res_phase(self, freq: FrequencyGrid, rf: RFElectronics):
-        """need to ask Nick what this is called. He called it "phase1" """
-        return -2 * np.pi * freq.fc * rf.cable_delay
 
     def background(self, freq: FrequencyGrid, rf: RFElectronics):
         xm = freq.grid / self.f0 - 1
@@ -148,6 +150,8 @@ class LitResonator(Resonator):
     @property
     def normalized_iq(self):
         return self.noisy_iq_response / self.background(self.f0)
+
+
 """
     @property
     def basic_coordinate_transform(self):
