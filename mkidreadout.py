@@ -2,20 +2,41 @@ import numpy as np
 import matplotlib.pyplot as plt
 import skimage
 from phasetimestream import PhaseTimeStream
-from scipy.signal import welch
-from logging import getLogger
+from resonator import MeasureResonator
+from mkidnoiseanalysis import swenson_formula
+
+
+def basic_coordinate_transform(meas: MeasureResonator):
+    z1 = (1 - meas.normalized_iq - meas.res.q_tot / (2 * meas.res.qc) + 1j * meas.res.q_tot * meas.res.xa) / \
+         (1 - meas.normalized_s21 - meas.res.q_tot / (2 * meas.res.qc) + 1j * meas.res.q_tot * meas.res.xa)
+    theta1 = np.arctan2(z1.imag, z1.real)
+    d1 = (np.abs(1 - meas.normalized_iq - meas.res.q_tot / (2 * meas.res.qc) + 1j * meas.res.q_tot * meas.res.xa) /
+          np.abs(meas.res.q_tot / (2 * meas.res.qc) - 1j * meas.res.q_tot * meas.res.xa)) - 1
+    return theta1, d1
+
+
+def nick_coordinate_transformation(meas: MeasureResonator):
+    xn = swenson_formula(0, meas.res.a) / meas.res.q_tot
+    theta2 = -4 * meas.res.q_tot / (1 + 4 * meas.res.q_tot ** 2 * xn ** 2) * (
+                (meas.normalized_iq.imag + 2 * meas.res.qc * meas.res.xa * (meas.normalized_iq.real - 1)) / (
+                    2 * meas.res.qc * np.abs(1 - (meas.normalized_iq / meas.background(meas.res.f0))) ** 2) - xn)
+    d2 = -2 * meas.res.q_tot / (1 + 4 * meas.res.q_tot ** 2 * xn ** 2) * ((meas.normalized_iq.real - np.abs(
+        meas.normalized_iq) ** 2 + 2 * meas.res.qc * meas.res.xa * meas.normalized_iq.imag) / (meas.res.qc * np.abs(
+        1 - meas.normalized_iq) ** 2) - 1 / meas.res._qi_dark)
+    return theta2, d2
 
 
 class MKIDReadout:
     """ A class containing readout functions and their specifications.
 """
 
-    def __init__(self):
+    def __init__(self, coordinate_transform: str):
         self.optimal_filter = None
         self.trig = None
         self.photon_energies = None
         self.photon_energy_idx = None
         self._trig_holdoff = None
+        self.coordinate_transform = coordinate_transform
 
     def trigger(self, timestream: PhaseTimeStream, data, threshold=-0.7, deadtime=30):
         """ threshold = phase value (really density of quasiparticles in the inductor) one must exceed to trigger
