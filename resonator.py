@@ -2,17 +2,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 from mkidnoiseanalysis import swenson_formula
 from phasetimestream import PhaseTimeStream
-
-
-def compute_s21(rf: RFElectronics, freq: FrequencyGrid, res: Resonator):
-    xg = freq.grid / res.f0 - 1
-    q = (res.qi ** -1 + res.qc ** -1) ** -1
-    xn = swenson_formula(q * xg, res.a) / q
-    res_phase = -2 * np.pi * freq.fc * rf.cable_delay
-    phase = np.exp(1j * (rf.phase_delay + res_phase * freq.xm))
-    q_num = res.qc + 2 * 1j * res.qi * res.qc * (xn + res.xa)
-    q_den = res.qi + res.qc + 2 * 1j * res.qi * res.qc * xn
-    return rf.gain(freq.xm) * phase * (q_num / q_den)
+import copy
 
 
 class FrequencyGrid:
@@ -62,16 +52,6 @@ class RFElectronics:
         self.phase_delay = phase_delay  # phase polynomial coefficients (total loop rotation) [radians]
         self.cable_delay = cable_delay  # cable delay
 
-    def phase1(self, freq: FrequencyGrid):
-        """need to ask Nick what this is called. He called it "phase1" """
-        return -2 * np.pi * freq.fc * self.cable_delay
-
-    def background(self, f0, freq: FrequencyGrid):
-        xm = freq.grid / f0 - 1
-        gain = self.gain(xm)
-        phase = np.exp(1j * (self.phase_delay + self.phase1(freq) * xm))
-        return gain * phase
-
 
 class Resonator:
     def __init__(self, f0=4.0012e9, qi=200000, qc=15000, xa=0.5, a=0):
@@ -96,60 +76,69 @@ class Resonator:
         self.qc = qc
         self.xa = xa
         self.a = a
+        self.q_tot = (self.qi ** -1 + self.qc ** -1) ** -1
+        self.tls_noise = None
 
-    def s21(self, freq: FrequencyGrid, rf: RFElectronics):
-        return compute_s21(rf, freq, self)
 
-    def background(self, freq: FrequencyGrid, rf: RFElectronics):
-        xm = freq.grid / self.f0 - 1
-        gain = rf.gain(xm)
-        phase = np.exp(1j * (rf.phase_delay + self.res_phase(freq, rf) * xm))
+def illuminate_resonator(photons: PhaseTimeStream, res: Resonator):
+    lit_res = copy.deepcopy(res)
+    dfr = photons.data_nonoise * 1e5 + photons.tls_noise
+    dqi_inv = -photons.data_nonoise * 2e-5
+    lit_res.f0 = res.f0 + dfr
+    lit_res.qi = (res.qi ** -1 + dqi_inv) ** -1
+    lit_res.q0 = (res.qi ** -1 + res.qc ** -1) ** -1
+    lit_res.tls_noise = photons.tls_noise
+    return lit_res
+
+
+class MeasureResonator:
+    def __init__(self, res: Resonator, freq: FrequencyGrid, rf: RFElectronics):
+        self.res = res
+        self.freq = freq
+        self.rf = rf
+
+    @property
+    def phase1(self):
+        """need to ask Nick what this is called. He called it "phase1" """
+        return -2 * np.pi * self.freq.fc * self.rf.cable_delay
+
+    @property
+    def background(self):
+        xm = self.freq.grid / self.res.f0 - 1
+        gain = self.rf.gain(xm)
+        phase = np.exp(1j * (self.rf.phase_delay + self.phase1 * xm))
         return gain * phase
 
-    def plot_trans(self, freq: FrequencyGrid, rf: RFElectronics, ax=None, fig=None):
-        plt.rcParams.update({'font.size': 12})
-        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 5))
-        fig.suptitle(f'{self.f0 * 1e-9} GHz Simulated Resonator', fontsize=15)
+    @property
+    def s21(self):
+        xg = self.freq.grid / self.res.f0 - 1
+        q = (self.res.qi ** -1 + self.res.qc ** -1) ** -1
+        xn = swenson_formula(q * xg, self.res.a) / q
+        res_phase = -2 * np.pi * self.freq.fc * self.rf.cable_delay
+        phase = np.exp(1j * (self.rf.phase_delay + res_phase * self.freq.xm))
+        q_num = self.res.qc + 2 * 1j * self.res.qi * self.res.qc * (xn + self.res.xa)
+        q_den = self.res.qi + self.res.qc + 2 * 1j * self.res.qi * self.res.qc * xn
+        return self.rf.gain(self.freq.xm) * phase * (q_num / q_den)
 
-        ax1.plot(freq.grid * 1e-9, 20 * np.log10(np.abs(self.s21(self, freq, rf))), linewidth=4)
-        ax1.set_ylabel('|S21| [dB]')
-        ax1.set_xlabel('Frequency [GHz]')
-        ax1.set_title('Transmission')
-
-        ax2.plot(self.s21.real, self.s21.imag, 'o')
-        ax2.set_xlabel('Real(S21)')
-        ax2.set_ylabel('Imag(S21)')
-        ax2.set_title('IQ Loop')
-
-        fig.tight_layout()
-
-
-class LitResonator(Resonator):
-    def __init__(self, photons: PhaseTimeStream, res: Resonator):
-        super().__init__()
-        self.dfr = photons.data_nonoise * 1e5 + photons.tls_noise
-        self.dqi_inv = -photons.data_nonoise * 2e-5
-        self.f0 = res.f0 + self.dfr
-        self.qi = (res.qi ** -1 + self.dqi_inv) ** -1
-        self.q0 = (res.qi ** -1 + res.qc ** -1) ** -1
-        self.tls_noise = photons.tls_noise
-
-    def iq_response_nonoise(self, freq: FrequencyGrid, rf: RFElectronics):
+    @property
+    def iq_response_nonoise(self):
         """Effectivly a lowpass filter."""
-        dt = (freq.grid[1] - freq.grid[0]) * 1e-6
-        f = np.fft.fftfreq(self.s21(self, freq, rf).size, d=dt)
-        return np.fft.ifft(np.fft.fft(self.s21(self, freq, rf)) / (1 + 2j * self.q0 * f / self.f0[0]))
+        dt = (self.freq.grid[1] - self.freq.grid[0]) * 1e-6
+        f = np.fft.fftfreq(self.s21.size, d=dt)
+        return np.fft.ifft(np.fft.fft(self.s21) / (1 + 2j * self.res.q_tot * f / self.res.f0[0]))
 
-    def noisy_iq_response(self, freq: FrequencyGrid, rf: RFElectronics):
-        response = self.iq_response_nonoise(freq, rf)
-        return response.real + self.tls_noise + 1j * (response.imag + self.tls_noise)
+    @property
+    def noisy_iq_response(self):
+        response = self.iq_response_nonoise()
+        return response.real + self.res.tls_noise + 1j * (response.imag + self.res.tls_noise)
 
+    @property
     def normalized_s21(self):
-        return self.s21_0 / self.background(self.f0)
+        return self.s21 / self.background()
 
     @property
     def normalized_iq(self):
-        return self.noisy_iq_response / self.background(self.f0)
+        return self.noisy_iq_response / self.background()
 
 
 """
