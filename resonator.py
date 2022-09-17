@@ -154,8 +154,8 @@ class MeasureResonator:
         return response.real + self.res.tls_noise + 1j * (response.imag + self.res.tls_noise)
 
     @property
-    def normalized_s21(self):
-        return self.s21 / self.background()
+    def normalized_s21(self): #TODO: is this really supposed to be the dark S21?
+        return self._s21_0 / self.background()
 
     @property
     def normalized_iq(self):
