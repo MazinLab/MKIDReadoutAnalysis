@@ -36,6 +36,10 @@ class PhaseTimeStream:
         self.tls_noise = None
         self.photon_pulse = None
 
+    @property
+    def dt(self):
+        return (self.tvec[1]-self.tvec[0])*1e-6
+
     def plot_phasetime(self, data, ax=None, fig=None):
         plt.figure()
         plt.plot(self.tvec * 1e6, data)
