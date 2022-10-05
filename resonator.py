@@ -53,6 +53,31 @@ def compute_s21(readout_freq, fc, increasing, f0, qi, qc, xa, a, rf_phase_delay,
     return gain * phase * (q_num / q_den)  # xm, xg, q, xn, gain, phase, q_num, q_den
 
 
+def generate_tls_noise(fs, size, scale, seed=4):
+    """ two-level system noise
+    inputs:
+    @param fs: float
+        sampling frequency (should match with whatever signal you will apply it to)
+    @param size: int
+        size of 1D array of points to generate
+    @param scale: float
+        magnitude of tls noise
+    @param seed: int?
+        random seed
+    scale should be the value of the psd at 1 Hz"""
+    random_seed = np.random.default_rng(seed=seed)
+    psd_freqs = np.fft.rfftfreq(size, d=1 / fs)
+    psd = np.zeros_like(psd_freqs)
+    nonzero = psd_freqs != 0
+    psd[nonzero] = scale / psd_freqs[nonzero]
+    noise_phi = 2 * np.pi * random_seed.random(psd_freqs.size)
+    noise_fft = np.exp(1j * noise_phi)  # n_traces x n_frequencies
+    # rescale the noise to the covariance
+    a = np.sqrt(size * psd * fs / 2)
+    noise_fft = a * noise_fft
+    return np.fft.irfft(noise_fft, size)
+
+
 def compute_phase1(fc, cable_delay):
     """need to ask Nick what this is called. He called it "phase1"
     Inputs:
@@ -69,10 +94,30 @@ def compute_background(f, fc, rf_gain, rf_phase_delay, phase1):
     return gain * phase
 
 
-def lowpass(s21, f0, q, dt):
-    f = np.fft.fftfreq(s21.size, d=dt)
-    z = np.fft.ifft(np.fft.fft(s21) / (1 + 2j * q * f / f0))
-    return z
+def lowpass(s21, tau_r, dt):
+    """
+    Causal lowpass filter which determines the IQ response of an MKID resonator
+    ----------------------------------------------------------------------
+    @param s21: 1D np.array
+        forward scattering matrix element timeseries measured at a single frequency (detector resonance frequency)
+    @param tau_r: float
+        characteristic timescale for resonator ring up (units must match dt!)
+        For an MKID resonator is it ususally:
+        [total quality factor (no photon)] / (pi * [original resonance frequency])
+    @param dt: float
+        time step between S21 sample points (units must match tau_r!)
+
+    @return: 1D np.array
+        iq response lowpass filtered by resonator
+    """
+    # tau_r = q_tot_0/(pi*f0_0)
+    # tau_r needs to be in units of dt
+    t = np.arange(0, 10 * tau_r, dt)  # filter time series
+    t = t[:int(np.round(t.size / 2) * 2)]  # make t an even number of elements
+    pad = t.size // 2
+    causal_filter = np.exp(-t / tau_r) / tau_r
+    full_convolve = np.convolve(np.pad(s21, pad, mode='edge'), causal_filter, mode='same') * dt
+    return full_convolve[pad:-pad]
 
 
 class FrequencyGrid:
@@ -131,7 +176,7 @@ class RFElectronics:
 
 
 class Resonator:
-    def __init__(self, f0=4.0012e9, qi=200000, qc=15000, xa=1e-9, a=0):
+    def __init__(self, f0=4.0012e9, qi=200000, qc=15000, xa=1e-9, a=0, tls_scale=1e4):
         """
         A class to represent one MKID resonator.
         ...
@@ -154,10 +199,10 @@ class Resonator:
         self.xa = xa
         self.a = a
         self.q_tot = (self.qi ** -1 + self.qc ** -1) ** -1
-        self.tls_noise = None
         self.f0_0 = f0
         self.qi_0 = qi
         self.q_tot_0 = self.q_tot
+        self.tls_scale = tls_scale
 
 
 class ResonatorSweep:
@@ -201,18 +246,20 @@ class ResonatorSweep:
 
 
 class ReadoutPhotonResonator:
-    def __init__(self, res: Resonator, photons: QuasiparticleTimeStream, freq: FrequencyGrid, rf: RFElectronics):
+    def __init__(self, res: Resonator, photons: QuasiparticleTimeStream, freq: FrequencyGrid, rf: RFElectronics,
+                 seed=2):
         self.res = copy.deepcopy(res)
         self.photons = photons
+        self.noise_rng = np.random.default_rng(seed=seed)
         self.freq = freq
         self.rf = rf
-
-        dfr = photons.data_nonoise * 1e5 + photons.tls_noise
-        dqi_inv = -photons.data_nonoise * 2e-5
+        self.tls_noise = generate_tls_noise(self.photons.fs, self.photons.data.size, self.res.tls_scale)
+        dfr = photons.data * 1e5 + self.tls_noise
+        dqi_inv = -photons.data * 2e-5
         self.res.f0 = res.f0 + dfr
         self.res.qi = (res.qi ** -1 + dqi_inv) ** -1
         self.res.q_tot = (self.res.qi ** -1 + res.qc ** -1) ** -1
-        self.res.tls_noise = photons.tls_noise
+        # self.res.tls_noise = photons.tls_noise
         self.res.f0_0 = res.f0  # original resonance frequency
         self.res.q_tot_0 = res.q_tot
 
@@ -236,13 +283,8 @@ class ReadoutPhotonResonator:
                            self.res.qc, self.res.xa, self.res.a, self.rf.phase_delay, self.rf.gain, self.phase1)
 
     @property
-    def iq_response_nonoise(self):
-        return lowpass(self.s21, self.res.f0_0, self.res.q_tot_0, self.photons.dt)
-
-    @property
-    def noisy_iq_response(self):
-        response = self.iq_response_nonoise
-        return response.real + self.res.tls_noise + 1j * (response.imag + self.res.tls_noise)
+    def iq_response(self):
+        return lowpass(self.s21, self.res.q_tot_0 / (np.pi * self.res.f0_0), self.photons.dt)
 
     @property
     def normalized_s21(self):
@@ -253,14 +295,14 @@ class ReadoutPhotonResonator:
 
     @property
     def normalized_iq(self):
-        return self.noisy_iq_response / self.background
+        return self.iq_response / self.background
 
     def basic_coordinate_transformation(self):
-        z1 = (1 - self.noisy_iq_response / self.background - self.res.q_tot_0 / (2 * self.res.qc) + 1j *
+        z1 = (1 - self.iq_response / self.background - self.res.q_tot_0 / (2 * self.res.qc) + 1j *
               self.res.q_tot_0 * self.res.xa) / (1 - self.normalized_s21 - self.res.q_tot_0 /
                                                  (2 * self.res.qc) + 1j * self.res.q_tot_0 * self.res.xa)
         theta1 = np.arctan2(z1.imag, z1.real)
-        d1 = (np.abs(1 - self.noisy_iq_response / self.background - self.res.q_tot_0 / (2 * self.res.qc) +
+        d1 = (np.abs(1 - self.iq_response / self.background - self.res.q_tot_0 / (2 * self.res.qc) +
                      1j * self.res.q_tot_0 * self.res.xa) / np.abs(self.res.q_tot_0 / (2 * self.res.qc) -
                                                                    1j * self.res.q_tot_0 * self.res.xa)) - 1
         return theta1, d1
@@ -283,7 +325,7 @@ class ReadoutPhotonResonator:
         axes.axis('equal')
         axes.plot(s21_dark.real, s21_dark.imag, 'o')
         axes.plot(self.s21.real, self.s21.imag, '-')
-        axes.plot(self.iq_response_nonoise.real, self.iq_response_nonoise.imag)
+        axes.plot(self.iq_response.real, self.iq_response.imag)
 
         # fig, axes = plt.subplots()
         # axes.plot(theta1, color='C0')

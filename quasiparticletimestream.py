@@ -24,17 +24,15 @@ class QuasiparticleTimeStream:
           whether or not a photon arrived in that time step
      """
 
-    def __init__(self, fs, ts, seed=2):
+    def __init__(self, fs, ts, seed=3):
         self.fs = fs
         self.ts = ts
+        self.photon_arrival_rng = np.random.default_rng(seed=seed)
         self.points = int(self.ts * 1e-6 * self.fs)
         self.tvec = np.arange(0, self.points) / self.fs
-        self.data_nonoise = np.zeros(self.points)
-        self.rng = np.random.default_rng(seed=seed)
-        self.data = None  # add other
+        self.data = np.zeros(self.points)
         self._holdoff = None
         self.photon_arrivals = None
-        self.tls_noise = None
         self.photon_pulse = None
 
     @property
@@ -65,7 +63,7 @@ class QuasiparticleTimeStream:
         - cps: int, photon co
         unts per second.
         """
-        photon_events = self.rng.poisson(cps / self.fs, self.tvec.shape[0])
+        photon_events = self.photon_arrival_rng.poisson(cps / self.fs, self.tvec.shape[0])
         self.photon_arrivals = np.array(photon_events, dtype=bool)
         if sum(photon_events) > sum(self.photon_arrivals):
             getLogger(__name__).warning(f'More than 1 photon arriving per time step. Lower the count rate?')
@@ -74,23 +72,7 @@ class QuasiparticleTimeStream:
         return self.photon_arrivals
 
     def populate_photons(self):
-        for i in range(self.data_nonoise.size):
+        for i in range(self.data.size):
             if self.photon_arrivals[i]:
-                self.data_nonoise[i:i + self.photon_pulse.shape[0]] = self.photon_pulse
-        return self.data_nonoise
-
-    def set_tls_noise(self, scale=1e-3, fr=6e9, q=15e3, **kwargs):
-        """ two-level system noise
-        q = total quality factor qtot_0
-        fr = is f0_0"""
-        psd_freqs = np.fft.rfftfreq(self.data_nonoise.size, d=1 / self.fs)
-        psd = np.zeros_like(psd_freqs)
-        nonzero = psd_freqs != 0
-        psd[nonzero] = scale / psd_freqs[nonzero]
-        noise_phi = 2 * np.pi * self.rng.random(psd_freqs.size)
-        noise_fft = np.exp(1j * noise_phi)  # n_traces x n_frequencies
-        # rescale the noise to the covariance
-        a = np.sqrt(self.data_nonoise.size * psd * self.fs / 2)
-        noise_fft = a * noise_fft
-        self.tls_noise = np.fft.irfft(noise_fft, self.data_nonoise.size)
-        self.data = self.data_nonoise + self.tls_noise
+                self.data[i:i + self.photon_pulse.shape[0]] = self.photon_pulse
+        return self.data
