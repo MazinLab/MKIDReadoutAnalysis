@@ -84,10 +84,9 @@ class QuasiparticleTimeStream:
         q = total quality factor qtot_0
         fr = is f0_0"""
         psd_freqs = np.fft.rfftfreq(self.data_nonoise.size, d=1 / self.fs)
-        fc = fr / (2 * q)
         psd = np.zeros_like(psd_freqs)
         nonzero = psd_freqs != 0
-        psd[nonzero] = scale / (1 + (psd_freqs[nonzero] / fc) ** 2) / psd_freqs[nonzero]
+        psd[nonzero] = scale / psd_freqs[nonzero]
         noise_phi = 2 * np.pi * self.rng.random(psd_freqs.size)
         noise_fft = np.exp(1j * noise_phi)  # n_traces x n_frequencies
         # rescale the noise to the covariance
