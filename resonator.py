@@ -1,7 +1,7 @@
 import numpy as np
 from matplotlib import pyplot as plt
 from mkidnoiseanalysis import swenson_formula
-from phasetimestream import PhaseTimeStream
+from quasiparticletimestream import QuasiparticleTimeStream
 import copy
 
 
@@ -131,7 +131,7 @@ class RFElectronics:
 
 
 class Resonator:
-    def __init__(self, f0=4.0012e9, qi=200000, qc=15000, xa=0.5, a=0):
+    def __init__(self, f0=4.0012e9, qi=200000, qc=15000, xa=1e-9, a=0):
         """
         A class to represent one MKID resonator.
         ...
@@ -201,7 +201,7 @@ class ResonatorSweep:
 
 
 class ReadoutPhotonResonator:
-    def __init__(self, res: Resonator, photons: PhaseTimeStream, freq: FrequencyGrid, rf: RFElectronics):
+    def __init__(self, res: Resonator, photons: QuasiparticleTimeStream, freq: FrequencyGrid, rf: RFElectronics):
         self.res = copy.deepcopy(res)
         self.photons = photons
         self.freq = freq

@@ -5,8 +5,9 @@ from scipy.signal import welch
 from logging import getLogger
 
 
-class PhaseTimeStream:
-    """ A time series containing photon pulses.
+class QuasiparticleTimeStream:
+    """ A time series with values proportional to the change in quasiparticle density relative to the
+    quasiparticle density when there are no photons hitting the depvice.
     ...
     Attributes:
      @type fs: float
@@ -17,8 +18,8 @@ class PhaseTimeStream:
          time vector [Sec]
      @type points: int
          number of samples
-     @type raw_phase_data: np.array
-         phase timestream with no added noise
+     @type data_nonoise: np.array
+         timestream with no added noise
      @type photon_arrivals: np.array of booleans
           whether or not a photon arrived in that time step
      """
@@ -40,22 +41,23 @@ class PhaseTimeStream:
     def dt(self):
         return (self.tvec[1]-self.tvec[0])*1e-6
 
-    def plot_phasetime(self, data, ax=None, fig=None):
+    def plot_timeseries(self, data, ax=None, fig=None):
         plt.figure()
         plt.plot(self.tvec * 1e6, data)
         plt.xlabel('time (usec)')
-        plt.ylabel('phase (radians?)')
+        plt.ylabel(r"$\propto \Delta$ Quasiparticle Density")
 
-    def gen_photon_pulse(self, tr=4, tf=30):
-        """ pulse with tr rise time in usec and tf fall time in usec."""
+    def gen_quasiparticle_pulse(self, tf=30):
+        """generates an instantaneous change in quasipaprticle density
+         which relaxes in tf fall time in usec."""
         tp = np.linspace(0, 10 * tf, int(10 * tf + 1))  # pulse duration
-        self.photon_pulse = -tf * (np.exp(-tp / tf) - np.exp(-tp / tr)) / (tf - tr)
+        self.photon_pulse = tf * (np.exp(-tp / tf) - np.exp(-tp)) / (tf)
 
     def plot_pulse(self, ax=None, fig=None):
         plt.figure()
         plt.plot(self.photon_pulse)
         plt.xlabel('Time (usec)')
-        plt.ylabel('Phase (radians?)')
+        plt.ylabel(r"$\propto \Delta$ Quasiparticle Density")
 
     def gen_photon_arrivals(self, cps=500):
         """ generate boolean list corresponding to poisson-distributed photon arrival events.
@@ -78,7 +80,9 @@ class PhaseTimeStream:
         return self.data_nonoise
 
     def set_tls_noise(self, scale=1e-3, fr=6e9, q=15e3, **kwargs):
-        """ two-level system noise"""
+        """ two-level system noise
+        q = total quality factor qtot_0
+        fr = is f0_0"""
         psd_freqs = np.fft.rfftfreq(self.data_nonoise.size, d=1 / self.fs)
         fc = fr / (2 * q)
         psd = np.zeros_like(psd_freqs)

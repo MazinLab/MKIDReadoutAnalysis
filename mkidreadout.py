@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import skimage
-from phasetimestream import PhaseTimeStream
+from phasetimestream import QuasiparticleTimeStream
 
 
 class MKIDReadout:
@@ -15,7 +15,7 @@ class MKIDReadout:
         self.photon_energy_idx = None
         self._trig_holdoff = None
 
-    def trigger(self, timestream: PhaseTimeStream, data, threshold=-0.7, deadtime=30):
+    def trigger(self, timestream: QuasiparticleTimeStream, data, threshold=-0.7, deadtime=30):
         """ threshold = phase value (really density of quasiparticles in the inductor) one must exceed to trigger
             holdoff: samples to wait before triggering again.
             deadtime: minimum time in microseconds between triggers"""
@@ -29,7 +29,7 @@ class MKIDReadout:
         self.trig = trig
         return self.trig
 
-    def plot_triggers(self, phase_data: PhaseTimeStream, data, energies=False, ax=None, fig=None):
+    def plot_triggers(self, phase_data: QuasiparticleTimeStream, data, energies=False, ax=None, fig=None):
         plt.figure()
         plt.plot(phase_data.tvec * 1e6, data)
         plt.plot(phase_data.tvec[self.trig] * 1e6, data[self.trig], '.')
