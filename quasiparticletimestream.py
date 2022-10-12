@@ -25,35 +25,37 @@ class QuasiparticleTimeStream:
      """
 
     def __init__(self, fs, ts, seed=3):
-        self.fs = fs
-        self.ts = ts
+        self.fs = fs #Hz
+        self.ts = ts #sec
         self.photon_arrival_rng = np.random.default_rng(seed=seed)
-        self.points = int(self.ts * 1e-6 * self.fs)
+        self.points = int(self.ts * self.fs)
         self.tvec = np.arange(0, self.points) / self.fs
         self.data = np.zeros(self.points)
         self._holdoff = None
         self.photon_arrivals = None
         self.photon_pulse = None
+        self.pulse_time = None
 
     @property
     def dt(self):
-        return (self.tvec[1]-self.tvec[0])*1e-6
+        return self.tvec[1]-self.tvec[0]
 
     def plot_timeseries(self, data, ax=None, fig=None):
         plt.figure()
-        plt.plot(self.tvec * 1e6, data)
-        plt.xlabel('time (usec)')
+        plt.plot(self.tvec, data)
+        plt.xlabel('time (sec)')
         plt.ylabel(r"$\propto \Delta$ Quasiparticle Density")
 
     def gen_quasiparticle_pulse(self, tf=30):
         """generates an instantaneous change in quasipaprticle density
          which relaxes in tf fall time in usec."""
-        tp = np.linspace(0, 10 * tf, int(10 * tf + 1))  # pulse duration
+        tp = np.linspace(0, 10 * tf, int(self.fs*(10 * tf * 1e-6)))  # pulse duration
         self.photon_pulse = np.exp(-tp / tf)
+        self.pulse_time = tp
 
     def plot_pulse(self, ax=None, fig=None):
         plt.figure()
-        plt.plot(self.photon_pulse)
+        plt.plot(self.pulse_time, self.photon_pulse)
         plt.xlabel('Time (usec)')
         plt.ylabel(r"$\propto \Delta$ Quasiparticle Density")
 

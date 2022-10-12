@@ -78,6 +78,13 @@ def generate_tls_noise(fs, size, scale, seed=4):
     return np.fft.irfft(noise_fft, size)
 
 
+def gen_amp_noise(snr, points, seed=2):
+    """ Flat PSD, white-noise generated from voltage fluctuations"""
+    random_seed = np.random.default_rng(seed=seed)
+    a_noise = 10 ** ((20 * np.log10(1 / np.sqrt(2)) - snr) / 10)  # input dBm of noise
+    return np.sqrt(a_noise) * random_seed.normal(size=points)
+
+
 def compute_phase1(fc, cable_delay):
     """need to ask Nick what this is called. He called it "phase1"
     Inputs:
@@ -259,13 +266,8 @@ class ReadoutPhotonResonator:
         self.res.f0 = res.f0 + dfr
         self.res.qi = (res.qi ** -1 + dqi_inv) ** -1
         self.res.q_tot = (self.res.qi ** -1 + res.qc ** -1) ** -1
-        # self.res.tls_noise = photons.tls_noise
         self.res.f0_0 = res.f0  # original resonance frequency
         self.res.q_tot_0 = res.q_tot
-
-        # res.q_tot = res.q_tot[:freq.points]
-        # res.qi = res.qi[:freq.points]
-        # res.f0 = res.f0[:freq.points]
 
     @property
     def phase1(self):
@@ -326,9 +328,3 @@ class ReadoutPhotonResonator:
         axes.plot(s21_dark.real, s21_dark.imag, 'o')
         axes.plot(self.s21.real, self.s21.imag, '-')
         axes.plot(self.iq_response.real, self.iq_response.imag)
-
-        # fig, axes = plt.subplots()
-        # axes.plot(theta1, color='C0')
-        # axes.plot(d1, color='C1')
-        # axes.plot(theta2, linestyle=":", color='C0')
-        # axes.plot(d2, linestyle=':', color='C1')
