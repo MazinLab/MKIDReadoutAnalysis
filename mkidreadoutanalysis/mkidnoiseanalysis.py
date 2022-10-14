@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.interpolate import InterpolatedUnivariateSpline
 from scipy import stats
-from scipy.signal import welch
+from scipy.signal import welch, lfilter
 
 
 def swenson_formula(y0, a, increasing: bool):
@@ -25,22 +25,6 @@ def gen_amp_noise(points, snr):
     return amp_noise
 
 
-# def gen_tls_noise(points, fs, scale=1e-3, fr=6e9, q=15e3):
-#    """ two-level system noise"""
-#    psd_freqs = np.fft.rfftfreq(points, d=1 / fs)
-#    fc = fr / (2 * q)
-#    psd = np.zeros_like(psd_freqs)
-#    nonzero = psd_freqs != 0
-#    psd[nonzero] = scale / (1 + (psd_freqs[nonzero] / fc) ** 2) / psd_freqs[nonzero]
-#    noise_phi = 2 * np.pi * np.rng.random(psd_freqs.size)
-#    noise_fft = np.exp(1j * noise_phi)
-#    # rescale the noise to the covariance
-#    a = np.sqrt(points * psd * fs / 2)
-#    noise_fft = a * noise_fft
-#    tls_noise = np.fft.irfft(noise_fft, points)
-#    return tls_noise
-
-
 def plot_psd(data, fs=2e6, fres=1e3, ax=None, fig=None, **kwargs):
     plt.figure()
     default = {'fs': fs, 'nperseg': fs / fres}
@@ -52,6 +36,7 @@ def plot_psd(data, fs=2e6, fres=1e3, ax=None, fig=None, **kwargs):
     plt.grid()
     plt.title('Power Spectral Density')
     # add axis later (include res)
+
 
 def quadratic_spline_roots(spline):
     """Returns the roots of a scipy spline."""
@@ -110,3 +95,55 @@ def compute_r(amplitudes, plot=False):
         plt.ylabel('counts')
 
     return -max_location / fwhm
+
+
+def plot_channel_fft(data, fs):
+    """Plot the power spectrum in dB of a channel"""
+    fft_data = 20 * np.log10(np.fft.fftshift(np.abs(np.fft.fft(data))))
+    plt.plot(np.linspace(-fs / 2, fs / 2, int(data.size)), fft_data - fft_data.max())
+    plt.grid()
+    plt.xlabel('Frequency (Hz)')
+    plt.ylabel('Power (dB)')
+
+
+def gen_line_noise(freqs, amps, phases, n_samples, fs):
+    """
+    Generate time series representing line noise in a single MKID coarse channel (MKID has been centered).
+    @param freqs: 1D np.array or list
+        frequencies of line noise
+    @param amps: 1D np.array or list
+        amplitudes of line noise
+    @param phases: 1D np.array or list
+        phases of line noise
+    @param n_samples: int
+        number of timeseries samples to produce
+    @param fs: float
+        sample rate of channel in Hz
+    @return:
+    """
+    freqs = np.asarray(freqs)  # Hz and relative to center of bin (MKID we are reading out)
+    amps = np.asarray(amps)
+    phases = np.asarray(phases)
+
+    n_samples = n_samples
+    sample_rate = fs
+
+    line_noise = np.zeros(n_samples, dtype=np.complex64)
+    t = 2 * np.pi * np.arange(n_samples) / sample_rate
+    for i in range(freqs.size):
+        phi = t * freqs[i]
+        exp = amps[i] * np.exp(1j * (phi + phases[i]))
+        line_noise += exp
+    return line_noise
+
+
+def apply_lowpass_filter(coe, data):
+    """
+
+    @param coe: 1D np.array
+        lowpass filter coefficients
+    @param data: 1D np.array
+        data to be filtered
+    """
+
+    return lfilter(coe, 1, data)

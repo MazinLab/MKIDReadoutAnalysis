@@ -1,7 +1,7 @@
 import numpy as np
 from matplotlib import pyplot as plt
-from mkidnoiseanalysis import swenson_formula
-from quasiparticletimestream import QuasiparticleTimeStream
+from mkidreadoutanalysis.mkidnoiseanalysis import swenson_formula
+from mkidreadoutanalysis.quasiparticletimestream import QuasiparticleTimeStream
 import copy
 
 
