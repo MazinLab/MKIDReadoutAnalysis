@@ -9,7 +9,6 @@ class MKIDReadout:
 """
 
     def __init__(self):
-        self.optimal_filter = None
         self.trig = None
         self.photon_energies = None
         self.photon_energy_idx = None
