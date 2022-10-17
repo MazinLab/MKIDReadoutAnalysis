@@ -101,6 +101,37 @@ def compute_background(f, fc, rf_gain, rf_phase_delay, phase1):
     return gain * phase
 
 
+def gen_line_noise(freqs, amps, phases, n_samples, fs):
+    """
+    Generate time series representing line noise in a single MKID coarse channel (MKID has been centered).
+    @param freqs: 1D np.array or list
+        frequencies of line noise
+    @param amps: 1D np.array or list
+        amplitudes of line noise
+    @param phases: 1D np.array or list
+        phases of line noise
+    @param n_samples: int
+        number of timeseries samples to produce
+    @param fs: float
+        sample rate of channel in Hz
+    @return:
+    """
+    freqs = np.asarray(freqs)  # Hz and relative to center of bin (MKID we are reading out)
+    amps = np.asarray(amps)
+    phases = np.asarray(phases)
+
+    n_samples = n_samples
+    sample_rate = fs
+
+    line_noise = np.zeros(n_samples, dtype=np.complex64)
+    t = 2 * np.pi * np.arange(n_samples) / sample_rate
+    for i in range(freqs.size):
+        phi = t * freqs[i]
+        exp = amps[i] * np.exp(1j * (phi + phases[i]))
+        line_noise += exp
+    return line_noise
+
+
 def lowpass(s21, tau_r, dt):
     """
     Causal lowpass filter which determines the IQ response of an MKID resonator
@@ -125,6 +156,27 @@ def lowpass(s21, tau_r, dt):
     causal_filter = np.exp(-t / tau_r) / tau_r
     full_convolve = np.convolve(np.pad(s21, pad, mode='edge'), causal_filter, mode='same') * dt
     return full_convolve[pad:-pad]
+
+
+class LineNoise:
+    """
+    A class to represent the line noise in an MKID readout setup. Line noise is comprised of individual
+    extraneous frequencies and usually arises from imperfections in analog and digital electronics.
+
+    Attributes:
+    --------------
+    """
+
+    def __init__(self, freqs, amplitudes, phases, n_samples, fs):
+        self.freqs = freqs
+        self.amplitudes = amplitudes
+        self.phases = phases
+        self.n_samples = n_samples
+        self.fs = fs
+
+    @property
+    def values(self):
+        return gen_line_noise(self.freqs, self.amplitudes, self.phases, self.n_samples, self.fs)
 
 
 class FrequencyGrid:
@@ -162,7 +214,8 @@ class FrequencyGrid:
 
 
 class RFElectronics:
-    def __init__(self, gain: (np.poly1d, tuple) = (3.0, 0, 0), phase_delay=0, cable_delay=50e-9):
+    def __init__(self, gain: (np.poly1d, tuple) = (3.0, 0, 0), phase_delay=0, cable_delay=50e-9, white_noise_scale=30,
+                 line_noise: LineNoise = LineNoise([500e3], [0.01], [0], 100, 1e3)):
         """
         A class to represent effects of RF cabling and amplifiers on MKID readout.
         ...
@@ -174,12 +227,17 @@ class RFElectronics:
             total loop rotation [radians]
         @type cable_delay: float
             cable delay [sec]
+        @type white_noise_scale: float
+            dimensionless parameter similar to SNR indicating system white noise
+            nominal values are 10 (bad SNR, very noisy) and 30 (good SNR, not too noisy)
         """
         if isinstance(gain, tuple):
             gain = np.poly1d(*gain)
-        self.gain = gain  # gain polynomial coefficients
+        self.gain = gain
         self.phase_delay = phase_delay  # phase polynomial coefficients (total loop rotation) [radians]
-        self.cable_delay = cable_delay  # cable delay
+        self.cable_delay = cable_delay
+        self.noise_scale = white_noise_scale
+        self.line_noise = line_noise
 
 
 class Resonator:
@@ -254,20 +312,23 @@ class ResonatorSweep:
 
 class ReadoutPhotonResonator:
     def __init__(self, res: Resonator, photons: QuasiparticleTimeStream, freq: FrequencyGrid, rf: RFElectronics,
-                 seed=2):
+                 seed=2, noise_on=False):
         self.res = copy.deepcopy(res)
         self.photons = photons
         self.noise_rng = np.random.default_rng(seed=seed)
         self.freq = freq
         self.rf = rf
+        self.rf.line_noise.fs = self.photons.fs
+        self.rf.line_noise.n_samples = self.photons.points
         self.tls_noise = generate_tls_noise(self.photons.fs, self.photons.data.size, self.res.tls_scale)
-        dfr = photons.data * 1e5 + self.tls_noise
-        dqi_inv = -photons.data * 2e-5
+        dfr = -photons.data * 1e5 + self.tls_noise
+        dqi_inv = photons.data * 2e-5
         self.res.f0 = res.f0 + dfr
         self.res.qi = (res.qi ** -1 + dqi_inv) ** -1
         self.res.q_tot = (self.res.qi ** -1 + res.qc ** -1) ** -1
         self.res.f0_0 = res.f0  # original resonance frequency
         self.res.q_tot_0 = res.q_tot
+        self.noise_on = noise_on
 
     @property
     def phase1(self):
@@ -275,18 +336,33 @@ class ReadoutPhotonResonator:
         return compute_phase1(self.freq.fc, self.rf.cable_delay)
 
     @property
+    def amp_noise(self):
+        """ White amplifier noise"""
+        return gen_amp_noise(self.rf.noise_scale, self.photons.points)
+
+    @property
+    def line_noise(self):
+        """ Line noise"""
+        return self.rf.line_noise.values
+
+    @property
     def background(self):
         """ Resonator background??"""
         return compute_background(self.res.f0, self.freq.fc, self.rf.gain, self.rf.phase_delay, self.phase1)
 
     @property
-    def s21(self):
+    def s21(self):  # maybe change name to reflect 1/2 noise weirdness
         return compute_s21(self.res.f0_0, self.freq.fc, self.freq.increasing, self.res.f0, self.res.qi,
                            self.res.qc, self.res.xa, self.res.a, self.rf.phase_delay, self.rf.gain, self.phase1)
 
     @property
     def iq_response(self):
+        if self.noise_on:
+            return lowpass(self.s21, self.res.q_tot_0 / (np.pi * self.res.f0_0), self.photons.dt)\
+                   + self.amp_noise
         return lowpass(self.s21, self.res.q_tot_0 / (np.pi * self.res.f0_0), self.photons.dt)
+
+    # Add amplifier and line noise after lowpass
 
     @property
     def normalized_s21(self):
@@ -299,7 +375,7 @@ class ReadoutPhotonResonator:
     def normalized_iq(self):
         return self.iq_response / self.background
 
-    def basic_coordinate_transformation(self):
+    def basic_coordinate_transformation(self):  # implement a more basic coordinate transformation
         z1 = (1 - self.iq_response / self.background - self.res.q_tot_0 / (2 * self.res.qc) + 1j *
               self.res.q_tot_0 * self.res.xa) / (1 - self.normalized_s21 - self.res.q_tot_0 /
                                                  (2 * self.res.qc) + 1j * self.res.q_tot_0 * self.res.xa)

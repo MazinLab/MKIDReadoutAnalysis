@@ -1,5 +1,6 @@
 from __future__ import division
 import numpy as np
+from . import utils
 
 __all__ = ["matched", "wiener", "dc_orthogonal", "exp_orthogonal", "dc_exp_orthogonal"]
 

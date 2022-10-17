@@ -7,6 +7,8 @@ from scipy.signal import welch, lfilter
 
 def swenson_formula(y0, a, increasing: bool):
     """doi: 10.1063/1.4903855"""
+    if a == 0:
+        return y0
     y0 = np.atleast_1d(y0)
     y = np.empty_like(y0)
     for i, y0_i in enumerate(y0):
@@ -16,13 +18,6 @@ def swenson_formula(y0, a, increasing: bool):
         else:
             y[i] = np.max(roots[np.isreal(roots)].real)
     return y
-
-
-def gen_amp_noise(points, snr):
-    """ Flat PSD, white-noise generated from voltage fluctuations"""
-    a_noise = 10 ** ((20 * np.log10(1 / np.sqrt(2)) - snr) / 10);  # input dBm of noise
-    amp_noise = np.sqrt(a_noise) * np.rng.normal(points)
-    return amp_noise
 
 
 def plot_psd(data, fs=2e6, fres=1e3, ax=None, fig=None, **kwargs):

@@ -22,6 +22,12 @@ class QuasiparticleTimeStream:
          timestream with no added noise
      @type photon_arrivals: np.array of booleans
           whether or not a photon arrived in that time step
+    1 per quasiparticle = 2 * gap energy
+    # qp = photon energy / (2*gap energy) * efficiency_factor
+    # normalized quasiparticle timestream
+    # some class knows constants that turn it into frequency shifts (material dependent)
+    # energy of photon
+    # usually want 90 degree phase response
      """
 
     def __init__(self, fs, ts, seed=3):
