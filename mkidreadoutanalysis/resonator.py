@@ -359,7 +359,7 @@ class ReadoutPhotonResonator:
     def iq_response(self):
         if self.noise_on:
             return lowpass(self.s21, self.res.q_tot_0 / (np.pi * self.res.f0_0), self.photons.dt)\
-                   + self.amp_noise
+                   + self.amp_noise + self.line_noise
         return lowpass(self.s21, self.res.q_tot_0 / (np.pi * self.res.f0_0), self.photons.dt)
 
     # Add amplifier and line noise after lowpass
