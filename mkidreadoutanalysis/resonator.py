@@ -375,6 +375,12 @@ class ReadoutPhotonResonator:
     def normalized_iq(self):
         return self.iq_response / self.background
 
+    def gen2_coordinate_transformation(self):
+        i_center = (np.percentile(self.iq_response.real, 95) + np.percentile(self.iq_response.real, 5)) / 2.
+        q_center = (np.percentile(self.iq_response.imag, 95) + np.percentile(self.iq_response.imag, 5)) / 2.
+        #TODO add loop rotation
+        return np.angle(self.iq_response.real - i_center + 1j*(self.iq_response.imag - q_center))
+
     def basic_coordinate_transformation(self):  # implement a more basic coordinate transformation
         z1 = (1 - self.iq_response / self.background - self.res.q_tot_0 / (2 * self.res.qc) + 1j *
               self.res.q_tot_0 * self.res.xa) / (1 - self.normalized_s21 - self.res.q_tot_0 /
