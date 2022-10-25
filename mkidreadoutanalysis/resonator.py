@@ -80,9 +80,11 @@ def generate_tls_noise(fs, size, scale, seed=4):
 
 def gen_amp_noise(snr, points, seed=2):
     """ Flat PSD, white-noise generated from voltage fluctuations"""
-    random_seed = np.random.default_rng(seed=seed)
+    random_number_generator = np.random.default_rng(seed=seed)
     a_noise = 10 ** ((20 * np.log10(1 / np.sqrt(2)) - snr) / 10)  # input dBm of noise
-    return np.sqrt(a_noise) * random_seed.normal(size=points)
+    real_noise = np.sqrt(a_noise) * random_number_generator.normal(size=points)
+    imag_noise = np.sqrt(a_noise) * random_number_generator.normal(size=points)
+    return real_noise + 1j*imag_noise
 
 
 def compute_phase1(fc, cable_delay):

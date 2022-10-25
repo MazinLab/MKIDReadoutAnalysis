@@ -126,6 +126,10 @@ class Calculator:
             self._fallback_template = utils.load_fallback_template(self.cfg.pulses)
         return self._fallback_template
 
+    @fallback_template.setter
+    def fallback_template(self, value):
+        self._fallback_template = value
+
     @property
     def characteristic_time(self):
         """Approximate time constant of the response in units of dt."""
@@ -457,7 +461,7 @@ class Calculator:
         filtered_phase = -self.phase if no_filter else self.apply_filter(filter_=filter_, positive=True)
         sigma = mad_std(filtered_phase)
         pulses, _ = sp.signal.find_peaks(filtered_phase, height=threshold * sigma,
-                                         distance=self.characteristic_time)
+                                         distance=10 * self.characteristic_time)
         responses = -filtered_phase[pulses]
         return responses, pulses
 
