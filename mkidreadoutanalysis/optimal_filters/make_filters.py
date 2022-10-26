@@ -10,20 +10,22 @@ import mkidcore.config
 
 # Flags for the optimal filter routine
 flags = {'not_started': 0,  # calculation has not been started.
-           'pulses_computed': 1,  # finished finding the pulses.
-           'noise_computed': 2,  # finished the noise calculation.
-           'template_computed': 4,  # finished the template calculation.
-           'filter_computed': 8,  # finished the filter calculation.
-           'bad_pulses': 16,  # not enough pulses found satisfying the configuration conditions.
-           'bad_noise': 32,  # noise calculation failed. Assuming white noise.
-           'bad_template': 64,  # template calculation failed. Using the fallback template.
-           'bad_template_fit': 128,  # the template fit failed. Using the raw data.
-           'bad_filter': 256}  # filter calculation failed. Using the template as a filter.
+         'pulses_computed': 1,  # finished finding the pulses.
+         'noise_computed': 2,  # finished the noise calculation.
+         'template_computed': 4,  # finished the template calculation.
+         'filter_computed': 8,  # finished the filter calculation.
+         'bad_pulses': 16,  # not enough pulses found satisfying the configuration conditions.
+         'bad_noise': 32,  # noise calculation failed. Assuming white noise.
+         'bad_template': 64,  # template calculation failed. Using the fallback template.
+         'bad_template_fit': 128,  # the template fit failed. Using the raw data.
+         'bad_filter': 256}  # filter calculation failed. Using the template as a filter.
 from . import utils
 from . import filters as filter_functions
 from . import templates as template_functions
 
 log = logging.getLogger(__name__)
+
+
 # log.addHandler(logging.NullHandler())
 #
 # DEFAULT_SAVE_NAME = "filter_solution.p"
@@ -53,9 +55,10 @@ class Calculator:
             by this class except for when printing log messages.
     """
 
-    def __init__(self, phase, config=None, fallback_template=None, name=None):
+    def __init__(self, phase, noise_data=None, config=None, fallback_template=None, name=None):
         self._cfg = config if config is not None else None
         self._user_input_phase = phase
+        self._user_input_noise_data = noise_data
         if fallback_template is not None:
             utils.check_template(self.cfg.pulses, fallback_template)
             self._fallback_template = fallback_template
@@ -67,6 +70,7 @@ class Calculator:
         self.name = name
 
         self.phase = None
+        self.noise_data = None
 
         self._init_result()
 
@@ -87,6 +91,17 @@ class Calculator:
     @phase.setter
     def phase(self, value):
         self._phase = value
+
+    @property
+    def noise_data(self):
+        """The phase time-stream of the resonator with no photon sorce."""
+        if self._user_input_noise_data is not None:
+            self._noise_data = self._user_input_noise_data
+        return self._noise_data
+
+    @noise_data.setter
+    def noise_data(self, value):
+        self._noise_data = value
 
     @property
     def cfg(self):
@@ -269,27 +284,35 @@ class Calculator:
         cfg = self.cfg.noise
         pulse_cfg = self.cfg.pulses
 
-        # add pulses to the ends so that the bounds are treated correctly
-        pulses = np.insert(np.append(self.result["pulses"], self.phase.size + 1), 0, 0)
-
-        # loop space between peaks and compute noise
-        n = 0
-        psd = np.zeros(int(cfg.nwindow / 2. + 1))
-        for peak1, peak2 in zip(pulses[:-1], pulses[1:]):
-            if n > cfg.max_noise:
-                break  # no more noise is needed
-            if peak2 - peak1 < cfg.isolation + pulse_cfg.offset + cfg.nwindow:
-                continue  # not enough space between peaks
-            data = self.phase[peak1 + cfg.isolation: peak2 - pulse_cfg.offset]
-            psd += sp.signal.welch(data, fs=1. / self.cfg.dt, nperseg=cfg.nwindow, detrend="constant",
-                                   return_onesided=True, scaling="density")[1]
-            n += 1
-
-        # finish the average, assume white noise if there was no data
-        if n == 0:
-            psd[:] = 1.
+        if self.noise_data is not None:
+            if self.noise_data.size < cfg.max_noise * cfg.nwindow:
+                raise IndexError("Not enough points in the noise for the specified window and sample number")
+            n = cfg.max_noise+1
+            noise_array = self.noise_data[:cfg.max_noise*cfg.nwindow].reshape(cfg.max_noise, cfg.nwindow)
+            psd = sp.signal.welch(noise_array, fs=1. / self.cfg.dt, nperseg=cfg.nwindow, detrend="constant",
+                                  return_onesided=True, scaling="density", axis=1)[1]
+            psd = psd.sum(axis=0) / cfg.max_noise
         else:
-            psd /= n
+            # add pulses to the ends so that the bounds are treated correctly
+            pulses = np.insert(np.append(self.result["pulses"], self.phase.size + 1), 0, 0)
+
+            # loop space between peaks and compute noise
+            n = 0
+            psd = np.zeros(int(cfg.nwindow / 2. + 1))
+            for peak1, peak2 in zip(pulses[:-1], pulses[1:]):
+                if n > cfg.max_noise:
+                    break  # no more noise is needed
+                if peak2 - peak1 < cfg.isolation + pulse_cfg.offset + cfg.nwindow:
+                    continue  # not enough space between peaks
+                data = self.phase[peak1 + cfg.isolation: peak2 - pulse_cfg.offset]
+                psd += sp.signal.welch(data, fs=1. / self.cfg.dt, nperseg=cfg.nwindow, detrend="constant",
+                                       return_onesided=True, scaling="density")[1]
+                n += 1
+            # finish the average, assume white noise if there was no data
+            if n == 0:
+                psd[:] = 1.
+            else:
+                psd /= n
 
         if save:
             # set flags and results
@@ -762,7 +785,6 @@ class Calculator:
         if clear:
             self.clear_file_properties()
 
-
 #
 #     def report(self, filter_type, return_string=False):
 #         """
@@ -829,4 +851,3 @@ class Calculator:
 #         self.filters.update({self.cfg.filters.filter.filter_type: filter_array})
 #         self.flags.update({self.cfg.filters.filter.filter_type: [c.result["flag"] for c in self.calculators]})
 #
-
