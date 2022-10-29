@@ -20,7 +20,7 @@ filters: !configdict  # main configuration section for the filter computation
   noise: !configdict  # configuration for computing the noise
     nwindow: 500  # window size used to estimate the power spectral density in units of dt [int]
     isolation: 100  # only use data isolated from pulses by this amount of time after the pulse in units of dt [int]
-    max_noise: 2000  # maximum number of noise samples needed before moving on [int]
+    max_window: 2000  # maximum number of nwindows of samples needed before moving on [int]
 
   template: !configdict  # configuration for computing the template
     percent: 80  # use only the middle x% of the data to compute the template [float]
