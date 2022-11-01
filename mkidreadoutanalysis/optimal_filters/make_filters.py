@@ -94,7 +94,7 @@ class Calculator:
 
     @property
     def noise_data(self):
-        """The phase time-stream of the resonator with no photon sorce."""
+        """The phase time-stream of the resonator with no photon source."""
         if self._user_input_noise_data is not None:
             self._noise_data = self._user_input_noise_data
         return self._noise_data
@@ -284,40 +284,32 @@ class Calculator:
         cfg = self.cfg.noise
         pulse_cfg = self.cfg.pulses
 
-        # if self.noise_data is not None:
-        #     if self.noise_data.size < cfg.max_windows * cfg.nwindow:
-        #         raise IndexError("Not enough points in the noise for the specified window and sample number")
-        #     n_psd = cfg.max_windows + 1
-        #     #noise_array = self.noise_data[:cfg.max_windows*cfg.nwindow*4].reshape(cfg.max_windows, cfg.nwindow*4)
-        #     #psd = sp.signal.welch(noise_array, fs=1. / self.cfg.dt, nperseg=cfg.nwindow, detrend="constant", return_onesided=True, scaling="density", axis=1)[1]
-        #     #psd = psd.sum(axis=0) / cfg.max_windows
-        #
-        #     psd = sp.signal.welch(self.noise_data-self.noise_data.mean(), fs=1. / self.cfg.dt, nperseg=cfg.nwindow, detrend="constant", return_onesided=True, scaling="density")[1]
-        #
-        # else:
-        # add pulses to the ends so that the bounds are treated correctly
-        pulses = np.insert(np.append(self.result["pulses"], self.phase.size + 1), 0, 0)
-
-        # loop space between peaks and compute noise
-        phase_to_use = self.phase if self.noise_data is None else self.noise_data
-        n_psd = 0
-        windows_used = 0
-        psd = np.zeros(int(cfg.nwindow / 2. + 1))
-        for peak1, peak2 in zip(pulses[:-1], pulses[1:]):
-            if windows_used > cfg.max_windows:
-                break  # no more noise is needed
-            if peak2 - peak1 < cfg.isolation + pulse_cfg.offset + cfg.nwindow:
-                continue  # not enough space between peaks
-            data = phase_to_use[peak1 + cfg.isolation: peak2 - pulse_cfg.offset]
-            psd += sp.signal.welch(data-data.mean(), fs=1. / self.cfg.dt, nperseg=cfg.nwindow, detrend="constant",
-                                   return_onesided=True, scaling="density")[1]
-            n_psd += 1
-            windows_used += data.size // cfg.nwindow
-        # finish the average, assume white noise if there was no data
-        if n_psd == 0:
-            psd[:] = 1.
+        if self.noise_data is not None:
+            psd = sp.signal.welch(self.noise_data, fs=1. / self.cfg.dt, nperseg=cfg.nwindow, detrend="constant", return_onesided=True, scaling="density")[1]
+            n_psd = 1
         else:
-            psd /= n_psd
+            # add pulses to the ends so that the bounds are treated correctly
+            pulses = np.insert(np.append(self.result["pulses"], self.phase.size + 1), 0, 0)
+
+            # loop space between peaks and compute noise
+            n_psd = 0
+            windows_used = 0
+            psd = np.zeros(int(cfg.nwindow / 2. + 1))
+            for peak1, peak2 in zip(pulses[:-1], pulses[1:]):
+                if windows_used > cfg.max_windows:
+                    break  # no more noise is needed
+                if peak2 - peak1 < cfg.isolation + pulse_cfg.offset + cfg.nwindow:
+                    continue  # not enough space between peaks
+                data = self.phase[peak1 + cfg.isolation: peak2 - pulse_cfg.offset]
+                psd += sp.signal.welch(data-data.mean(), fs=1. / self.cfg.dt, nperseg=cfg.nwindow, detrend="constant",
+                                   return_onesided=True, scaling="density")[1]
+                n_psd += 1
+                windows_used += data.size // cfg.nwindow
+        # finish the average, assume white noise if there was no data
+            if n_psd == 0:
+                psd[:] = 1.
+            else:
+                psd /= n_psd
 
         if save:
             # set flags and results

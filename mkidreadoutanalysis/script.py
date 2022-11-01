@@ -81,7 +81,7 @@ cfg.registerfromkvlist((('dt', 2e-6),
 ('template.min_tau', 5),
 ('template.max_tau', 100),
 ('template.fit', 'triple_exponential'),
-('filter.filter_type',  'wiener'),
+('filter.filter_type',  'wiener'), #dc_orthogonal filter doesn't use bin 0
 ('filter.nfilter', 100), # for messing around this should be closer to 1000 and ntemplate should be increased to be 5-10x nfilter
                         # need to make sure filter is periodic and this gets hard when the filter is short
 ('filter.normalize', True)), namespace='')
