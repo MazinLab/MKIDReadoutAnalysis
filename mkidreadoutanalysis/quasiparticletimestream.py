@@ -72,15 +72,19 @@ class QuasiparticleTimeStream:
         unts per second.
         """
         photon_events = self.photon_arrival_rng.poisson(cps / self.fs, self.tvec.shape[0])
-        self.photon_arrivals = np.array(photon_events, dtype=bool)
-        if sum(photon_events) > sum(self.photon_arrivals):
-            getLogger(__name__).warning(f'More than 1 photon arriving per time step. Lower the count rate?')
-        if sum(photon_events) == 0:
+        photon_arrivals = photon_events>0
+        if not photon_arrivals.any():
             getLogger(__name__).warning(f"Warning: No photons arrived. :'(")
+        elif (photon_events[photon_arrivals] > 1).any():
+            getLogger(__name__).warning(f'More than 1 photon arriving per time step. Lower the count rate?')
+        self.photon_arrivals = photon_arrivals
         return self.photon_arrivals
 
     def populate_photons(self):
         for i in range(self.data.size):
             if self.photon_arrivals[i]:
-                self.data[i:i + self.photon_pulse.shape[0]] = self.photon_pulse
+                try:
+                    self.data[i:i + self.photon_pulse.shape[0]] = self.photon_pulse
+                except IndexError:
+                    pass
         return self.data

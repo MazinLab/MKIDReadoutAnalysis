@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import skimage
-from quasiparticletimestream import QuasiparticleTimeStream
+from .quasiparticletimestream import QuasiparticleTimeStream
 
 
 class MKIDReadout:

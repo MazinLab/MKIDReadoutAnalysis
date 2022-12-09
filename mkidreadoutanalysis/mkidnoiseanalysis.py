@@ -101,37 +101,6 @@ def plot_channel_fft(data, fs):
     plt.ylabel('Power (dB)')
 
 
-def gen_line_noise(freqs, amps, phases, n_samples, fs):
-    """
-    Generate time series representing line noise in a single MKID coarse channel (MKID has been centered).
-    @param freqs: 1D np.array or list
-        frequencies of line noise
-    @param amps: 1D np.array or list
-        amplitudes of line noise
-    @param phases: 1D np.array or list
-        phases of line noise
-    @param n_samples: int
-        number of timeseries samples to produce
-    @param fs: float
-        sample rate of channel in Hz
-    @return:
-    """
-    freqs = np.asarray(freqs)  # Hz and relative to center of bin (MKID we are reading out)
-    amps = np.asarray(amps)
-    phases = np.asarray(phases)
-
-    n_samples = n_samples
-    sample_rate = fs
-
-    line_noise = np.zeros(n_samples, dtype=np.complex64)
-    t = 2 * np.pi * np.arange(n_samples) / sample_rate
-    for i in range(freqs.size):
-        phi = t * freqs[i]
-        exp = amps[i] * np.exp(1j * (phi + phases[i]))
-        line_noise += exp
-    return line_noise
-
-
 def apply_lowpass_filter(coe, data):
     """
 

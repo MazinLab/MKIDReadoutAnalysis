@@ -1,7 +1,7 @@
 import numpy as np
 from matplotlib import pyplot as plt
-from mkidreadoutanalysis.mkidnoiseanalysis import swenson_formula
-from mkidreadoutanalysis.quasiparticletimestream import QuasiparticleTimeStream
+from .mkidnoiseanalysis import swenson_formula
+from .quasiparticletimestream import QuasiparticleTimeStream
 import copy
 
 
@@ -48,10 +48,9 @@ def compute_s21(readout_freq, fc, increasing, f0, qi, qc, xa, a, rf_phase_delay,
 
     gain = rf_gain(xm)
     phase = np.exp(1j * (rf_phase_delay + cable_delay_phase * xm))
-    q_num = qc + 2 * 1j * qi * qc * (xn + xa)  # use xn instead of xg
-    q_den = qi + qc + 2 * 1j * qi * qc * xn
+    q_num = qc + 2j * qi * qc * (xn + xa)  # use xn instead of xg
+    q_den = qi + qc + 2j * qi * qc * xn
     return gain * phase * (q_num / q_den)  # xm, xg, q, xn, gain, phase, q_num, q_den
-
 
 def generate_tls_noise(fs, size, scale, seed=4):
     """ two-level system noise
@@ -128,9 +127,7 @@ def gen_line_noise(freqs, amps, phases, n_samples, fs):
     line_noise = np.zeros(n_samples, dtype=np.complex64)
     t = 2 * np.pi * np.arange(n_samples) / sample_rate
     for i in range(freqs.size):
-        phi = t * freqs[i]
-        exp = amps[i] * np.exp(1j * (phi + phases[i]))
-        line_noise += exp
+        line_noise += amps[i] * np.exp(1j * (t * freqs[i] + phases[i]))
     return line_noise
 
 
@@ -332,6 +329,9 @@ class ReadoutPhotonResonator:
         self.res.q_tot_0 = res.q_tot
         self.noise_on = noise_on
 
+    def reset(self):
+        del self._background, self._s21, self._iq_response
+
     @property
     def phase1(self):
         """need to ask Nick what this is called. He called it "phase1" """
@@ -350,19 +350,32 @@ class ReadoutPhotonResonator:
     @property
     def background(self):
         """ Resonator background??"""
-        return compute_background(self.res.f0, self.freq.fc, self.rf.gain, self.rf.phase_delay, self.phase1)
+        try:
+            self._background
+        except AttributeError:
+            self._background = compute_background(self.res.f0, self.freq.fc, self.rf.gain, self.rf.phase_delay, self.phase1)
+        return self._background
 
     @property
     def s21(self):  # maybe change name to reflect 1/2 noise weirdness
-        return compute_s21(self.res.f0_0, self.freq.fc, self.freq.increasing, self.res.f0, self.res.qi,
+        try:
+            self._s21
+        except AttributeError:
+            self._s21 = compute_s21(self.res.f0_0, self.freq.fc, self.freq.increasing, self.res.f0, self.res.qi,
                            self.res.qc, self.res.xa, self.res.a, self.rf.phase_delay, self.rf.gain, self.phase1)
+        return self._s21
 
     @property
     def iq_response(self):
-        if self.noise_on:
-            return lowpass(self.s21, self.res.q_tot_0 / (np.pi * self.res.f0_0), self.photons.dt)\
-                   + self.amp_noise + self.line_noise
-        return lowpass(self.s21, self.res.q_tot_0 / (np.pi * self.res.f0_0), self.photons.dt)
+        try:
+            self._iq_response_noise if self.noise_on else self._iq_response
+        except AttributeError:
+            if self.noise_on:
+                self._iq_response_noise = lowpass(self.s21, self.res.q_tot_0 / (np.pi * self.res.f0_0), self.photons.dt)\
+                       + self.amp_noise + self.line_noise
+            else:
+                self._iq_response = lowpass(self.s21, self.res.q_tot_0 / (np.pi * self.res.f0_0), self.photons.dt)
+        return self._iq_response_noise if self.noise_on else self._iq_response
 
     # Add amplifier and line noise after lowpass
 
@@ -382,6 +395,7 @@ class ReadoutPhotonResonator:
         q_center = (np.percentile(self.iq_response.imag, 95) + np.percentile(self.iq_response.imag, 5)) / 2.
         #TODO add loop rotation
         return np.angle(self.iq_response.real - i_center + 1j*(self.iq_response.imag - q_center))
+
 
     def basic_coordinate_transformation(self):  # implement a more basic coordinate transformation
         z1 = (1 - self.iq_response / self.background - self.res.q_tot_0 / (2 * self.res.qc) + 1j *
