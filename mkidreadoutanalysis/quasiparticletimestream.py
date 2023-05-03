@@ -52,11 +52,11 @@ class QuasiparticleTimeStream:
         plt.xlabel('time (sec)')
         plt.ylabel(r"$\propto \Delta$ Quasiparticle Density")
 
-    def gen_quasiparticle_pulse(self, tf=30):
+    def gen_quasiparticle_pulse(self, magnitude=1, tf=30):
         """generates an instantaneous change in quasipaprticle density
          which relaxes in tf fall time in usec."""
         tp = np.linspace(0, 10 * tf, int(self.fs*(10 * tf * 1e-6)))  # pulse duration
-        self.photon_pulse = np.exp(-tp / tf)
+        self.photon_pulse = magnitude*np.exp(-tp / tf)
         self.pulse_time = tp
 
     def plot_pulse(self, ax=None, fig=None):
