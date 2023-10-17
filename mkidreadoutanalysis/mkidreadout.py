@@ -14,12 +14,12 @@ class MKIDReadout:
         self.photon_energy_idx = None
         self._trig_holdoff = None
 
-    def trigger(self, timestream: QuasiparticleTimeStream, data, threshold=-0.7, deadtime=30):
+    def trigger(self, data, fs, threshold=-0.7, deadtime=30):
         """ threshold = phase value (really density of quasiparticles in the inductor) one must exceed to trigger
             holdoff: samples to wait before triggering again.
             deadtime: minimum time in microseconds between triggers"""
 
-        self._trig_holdoff = int(deadtime * 1e-6 * timestream.fs)
+        self._trig_holdoff = int(deadtime * 1e-6 * fs)
         all_trig = (data < threshold)  # & (np.diff(phase_data.phase_data, prepend=0)>0)
         trig = all_trig
         for i in range(all_trig.size):
@@ -28,15 +28,16 @@ class MKIDReadout:
         self.trig = trig
         return self.trig
 
-    def plot_triggers(self, phase_data: QuasiparticleTimeStream, data, energies=False, ax=None, fig=None):
+    def plot_triggers(self, data, fs, energies=False, ax=None, fig=None):
+        tvec = (np.arange(data.shape[0])*1/fs)*1e6
         plt.figure()
-        plt.plot(phase_data.tvec * 1e6, data)
-        plt.plot(phase_data.tvec[self.trig] * 1e6, data[self.trig], '.')
+        plt.plot(tvec, data)
+        plt.plot(tvec[self.trig], data[self.trig], '.')
         plt.xlabel('time (us)')
         plt.ylabel('phase (radians)')
         # plt.xticks(rotation = 45)
         if energies:
-            plt.plot(phase_data.tvec[self.photon_energy_idx] * 1e6, data[self.photon_energy_idx], 'o')
+            plt.plot(tvec[self.photon_energy_idx], data[self.photon_energy_idx], 'o')
 
     def record_energies(self, data):
         holdoff_views = skimage.util.view_as_windows(data, self._trig_holdoff)  # n_data x holdoff
