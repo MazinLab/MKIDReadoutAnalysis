@@ -5,8 +5,7 @@ import pkg_resources as pkg
 from astropy.stats import mad_std
 from skimage.restoration import unwrap_phase
 from matplotlib import ticker
-
-import mkidcore.config
+import mkidreadoutanalysis.optimal_filters.config as config
 
 # Flags for the optimal filter routine
 flags = {'not_started': 0,  # calculation has not been started.
@@ -43,7 +42,7 @@ class Calculator:
             TimeStream object.
         config: yaml config object (optional)
             The filter configuration object for the calculation loaded by
-            mkidcore.config.load(). If not supplied, the default configuration
+            config.load(). If not supplied, the default configuration
             will be used.
         fallback_template: numpy.ndarray (optional)
             A 1D numpy array of size config.pulses.ntemplate with the correct
@@ -110,7 +109,7 @@ class Calculator:
         the filter result that are not consistent with the new settings.
         """
         if self._cfg is None:
-            self._cfg = mkidcore.config.load(pkg.resource_filename(__name__, 'filter.yml')).filters
+            self._cfg = config.load(pkg.resource_filename(__name__, 'filter.yml')).filters
         return self._cfg
 
     @cfg.setter

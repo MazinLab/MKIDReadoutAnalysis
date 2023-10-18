@@ -2,13 +2,15 @@ from __future__ import print_function
 import re
 import ruamel.yaml
 from pkg_resources import Requirement, resource_filename
-from mkidcore.utils import caller_name
-from mkidcore.corelog import getLogger
+from logging import getLogger
 from multiprocessing import RLock
 import copy
 import time
 import os
+import inspect
+
 from datetime import datetime
+
 try:
     from StringIO import StringIO
     import ConfigParser as configparser
@@ -16,15 +18,47 @@ except ImportError:
     import configparser
     from io import StringIO
 
-RESERVED = ('._c', '._a')  #Internal keys hidden from the user for storing comments and
+RESERVED = ('._c', '._a')  # Internal keys hidden from the user for storing comments and
 
 yaml = ruamel.yaml.YAML()
 yaml_object = ruamel.yaml.yaml_object
 
 
+def caller_name(skip=2):
+    """Get a name of a caller in the format module.class.method
+
+       `skip` specifies how many levels of stack to skip while getting caller
+       name. skip=1 means "who calls me", skip=2 "who calls my caller" etc.
+
+       An empty string is returned if skipped levels exceed stack height
+    """
+    stack = inspect.stack()
+    start = 0 + skip
+    if len(stack) < start + 1:
+        return ''
+    parentframe = stack[start][0]
+
+    name = []
+    module = inspect.getmodule(parentframe)
+    # `modname` can be None when frame is executed directly in console
+    if module:
+        name.append(module.__name__)
+    # detect classname
+    if 'self' in parentframe.f_locals:
+        # I don't know any way to detect call from the object method
+        # XXX: there seems to be no way to detect static method call - it will
+        #      be just a function call
+        name.append(parentframe.f_locals['self'].__class__.__name__)
+    codename = parentframe.f_code.co_name
+    if codename != '<module>':  # top level usually
+        name.append(codename)  # function or a method
+    del parentframe
+    return ".".join(name)
+
+
 class _BeamDict(dict):
     def __missing__(self, key):
-        bfile = os.path.join(os.path.dirname(__file__), key.lower()+'.bmap')
+        bfile = os.path.join(os.path.dirname(__file__), key.lower() + '.bmap')
         self[key] = bfile
         return bfile
 
@@ -92,7 +126,7 @@ class ConfigThing(dict):
         """
         lock = kwargs.pop('lock', None)
         if args:
-            #TODO if args has one element and that element is a list of kv pairs then we need to update the
+            # TODO if args has one element and that element is a list of kv pairs then we need to update the
             # caller or update here to support the extra layer as well
             super(ConfigThing, self).update([(cannonizekey(k), v) for k, v in args])
         self._lock = RLock() if lock is None else lock
@@ -301,7 +335,7 @@ class ConfigThing(dict):
 
     def items(self):
         """Hide reserved keys"""
-        return filter(lambda x: not (isinstance(x[0],str) and x[0].endswith(RESERVED)),
+        return filter(lambda x: not (isinstance(x[0], str) and x[0].endswith(RESERVED)),
                       super(ConfigThing, self).items())
 
     def update(self, key, value, comment=None):
@@ -330,12 +364,12 @@ class ConfigThing(dict):
                 raise ValueError('{} is not an allowed value for {}'.format(value, key))
             self[k1] = value
             if comment is not None:
-                self[k1+'._c'] = comment
+                self[k1 + '._c'] = comment
 
     def allowed(self, key, value):
-        if key+'._a' in self:
-            getLogger(__name__).warning(str(key)+' has restrictions no allowed values but checking has not yet been '
-                                        'implemented')
+        if key + '._a' in self:
+            getLogger(__name__).warning(str(key) + ' has restrictions no allowed values but checking has not yet been '
+                                                   'implemented')
         return True
 
     def _register(self, key, initialvalue, allowed=None, comment=None):
@@ -364,7 +398,7 @@ class ConfigThing(dict):
             raise KeyError("Setting '{}' is not registered.".format(key))
         try:
             tree, _, leaf = key.rpartition('.')
-            return self.get(tree)[leaf+'._c']
+            return self.get(tree)[leaf + '._c']
         except KeyError:
             return None
 
@@ -387,7 +421,7 @@ class ConfigThing(dict):
         with self._lock:
             self.keyisvalid(key, error=True)
             if '.' in key:
-                root,_,end = key.rpartition('.')
+                root, _, end = key.rpartition('.')
                 # d = self.get(root, {})
                 # for k in [end]+[end+r for r in RESERVED]:
                 #     d.pop(k, None)
@@ -395,13 +429,13 @@ class ConfigThing(dict):
             else:
                 if key in self.REQUIRED_KEYS:
                     raise KeyError('{} is required and may not be deregistered'.format(key))
-                for k in [key]+[key+r for r in RESERVED]:
+                for k in [key] + [key + r for r in RESERVED]:
                     self.pop(k, None)
 
     def todict(self):
         with self._lock:
             ret = dict(self)
-            for k,v in ret.items():
+            for k, v in ret.items():
                 if isinstance(v, ConfigThing):
                     ret[k] = v.todict()
             return ret
@@ -450,7 +484,7 @@ class ConfigThing(dict):
     def _setlock(self, lock=None):
         """ Set the RLock for self and all nested configs"""
         self._lock = lock if lock is not None else RLock()
-        for k,v in self.items():
+        for k, v in self.items():
             if isinstance(v, ConfigThing):
                 v._setlock(lock=self._lock)
 
@@ -511,8 +545,8 @@ def loadoldconfig(cfgfile):
         with open(cfgfile, 'r') as f:
             data = f.readlines()
 
-        for l in (l for l in data if l and l[0]!='#'):
-            k, _, v =l.partition('=')
+        for l in (l for l in data if l and l[0] != '#'):
+            k, _, v = l.partition('=')
             if not k.strip():
                 continue
             cp.set('DEFAULT', k.strip(), v.strip())
@@ -525,7 +559,7 @@ def _consolidate_roach_config(cd):
     for k in cd.keys():
         if 'roach_' in k:
             _, _, rnum = k.partition('_')
-            cd.register('roachnum',rnum)
+            cd.register('roachnum', rnum)
             roaches[rnum] = cd[k]
             cd.unregister(k)
         if re.match('sweep\d+', k):
@@ -552,8 +586,8 @@ def load(file, namespace=None):
         with open(file, 'r') as f:
             ret = yaml.load(f)
         try:
-             with open(ret.roaches.value, 'r') as f:
-                 ret.update('roaches', yaml.load(f))
+            with open(ret.roaches.value, 'r') as f:
+                ret.update('roaches', yaml.load(f))
         except (KeyError, AttributeError):
             pass
         return ret
@@ -564,7 +598,7 @@ def load(file, namespace=None):
 
 
 def ingestoldconfigs(cfiles=('beammap.align.cfg', 'beammap.clean.cfg', 'beammap.sweep.cfg', 'dashboard.cfg',
-                             'initgui.cfg', 'powersweep.ml.cfg',  'templar.cfg')):
+                             'initgui.cfg', 'powersweep.ml.cfg', 'templar.cfg')):
     config = ConfigThing()
     for cf in cfiles:
         cp = loadoldconfig(cf)
@@ -581,7 +615,7 @@ def ingestoldconfigs(cfiles=('beammap.align.cfg', 'beammap.clean.cfg', 'beammap.
 def tagstr(x, cfg=None):
     """tag a string with canonical things {time}=time.time(), {utc}=UTC timestamp,
     {night}=UTCYYYMMDD of night start, {instrument}=MEC|DARKNESS, requires a config with .instrument.name"""
-    #TODO implement night
+    # TODO implement night
     try:
         inst = cfg.instrument.name
     except (AttributeError, KeyError):
@@ -590,7 +624,7 @@ def tagstr(x, cfg=None):
     return x.format(time=int(time.time()), utc=datetime.utcnow().strftime("%Y%m%d%H%M"),
                     night='<UTCNight>', instrument=inst)
 
-#TODO test .c .lc, .a
+# TODO test .c .lc, .a
 
 # #---------------------
 #
