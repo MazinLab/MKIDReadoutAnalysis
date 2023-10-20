@@ -45,7 +45,7 @@ def quadratic_spline_roots(spline):
     return np.array(roots)
 
 
-def compute_r(amplitudes, plot=False):
+def compute_r(amplitudes, color=None, plot=False):
     # Using Scott's method to compute bandwidth but with MAD
     sigma = amplitudes.std(ddof=1)
     sigma_mad = stats.median_abs_deviation(amplitudes, scale='normal')
@@ -83,13 +83,13 @@ def compute_r(amplitudes, plot=False):
 
     if plot:
         plt.figure()
-        plt.hist(amplitudes, bins='auto', density=True)
+        plt.hist(amplitudes, bins='auto', density=True, color=color)
         x = np.linspace(amplitudes.min(), amplitudes.max(), 1000)
         plt.plot(x, pdf(x))
-        plt.xlabel('Phase peak (need to change this to energy?)')
+        plt.xlabel('Phase')
         plt.ylabel('counts')
 
-    return -max_location / fwhm
+    return -max_location, fwhm
 
 
 def plot_channel_fft(data, fs):
