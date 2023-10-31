@@ -8,7 +8,7 @@ from matplotlib import ticker
 import mkidreadoutanalysis.optimal_filters.config as config
 
 # Flags for the optimal filter routine
-flags = {'not_started': 0,  # calculation has not been started.
+FLAG_DEFS = {'not_started': 0,  # calculation has not been started.
          'pulses_computed': 1,  # finished finding the pulses.
          'noise_computed': 2,  # finished the noise calculation.
          'template_computed': 4,  # finished the template calculation.
@@ -18,6 +18,7 @@ flags = {'not_started': 0,  # calculation has not been started.
          'bad_template': 64,  # template calculation failed. Using the fallback template.
          'bad_template_fit': 128,  # the template fit failed. Using the raw data.
          'bad_filter': 256}  # filter calculation failed. Using the template as a filter.
+
 from . import utils
 from . import filters as filter_functions
 from . import templates as template_functions
@@ -167,11 +168,11 @@ class Calculator:
         self.result["psd"] = None
         log.debug("Calculator {}: noise reset.".format(self.name))
         # if the filter was flagged reset the flag bitmask
-        if self.result["flag"] & flags["bad_noise"]:
-            self.result["flag"] ^= flags["bad_noise"]
+        if self.result["flag"] & FLAG_DEFS["bad_noise"]:
+            self.result["flag"] ^= FLAG_DEFS["bad_noise"]
             log.debug("Calculator {}: noise problem flag reset.".format(self.name))
-        if self.result["flag"] & flags["noise_computed"]:
-            self.result["flag"] ^= flags["noise_computed"]
+        if self.result["flag"] & FLAG_DEFS["noise_computed"]:
+            self.result["flag"] ^= FLAG_DEFS["noise_computed"]
             log.debug("Calculator {}: noise status flag reset.".format(self.name))
 
     def clear_template(self):
@@ -180,14 +181,14 @@ class Calculator:
         self.result["template_fit"] = None
         log.debug("Calculator {}: template reset.".format(self.name))
         # if the filter was flagged reset the flag bitmask
-        if self.result["flag"] & flags["bad_template"]:
-            self.result["flag"] ^= flags["bad_template"]
+        if self.result["flag"] & FLAG_DEFS["bad_template"]:
+            self.result["flag"] ^= FLAG_DEFS["bad_template"]
             log.debug("Calculator {}: template problem flag reset.".format(self.name))
-        if self.result["flag"] & flags["bad_template_fit"]:
-            self.result["flag"] ^= flags["bad_template_fit"]
+        if self.result["flag"] & FLAG_DEFS["bad_template_fit"]:
+            self.result["flag"] ^= FLAG_DEFS["bad_template_fit"]
             log.debug("Calculator {}: template fit problem flag reset.".format(self.name))
-        if self.result["flag"] & flags["template_computed"]:
-            self.result["flag"] ^= flags["template_computed"]
+        if self.result["flag"] & FLAG_DEFS["template_computed"]:
+            self.result["flag"] ^= FLAG_DEFS["template_computed"]
             log.debug("Calculator {}: template status flag reset.".format(self.name))
 
     def clear_filter(self):
@@ -195,11 +196,11 @@ class Calculator:
         self.result["filter"] = None
         log.debug("Calculator {}: filter reset.".format(self.name))
         # if the filter was flagged reset the flag bitmask
-        if self.result["flag"] & flags["bad_filter"]:
-            self.result["flag"] ^= flags["bad_filter"]
+        if self.result["flag"] & FLAG_DEFS["bad_filter"]:
+            self.result["flag"] ^= FLAG_DEFS["bad_filter"]
             log.debug("Calculator {}: filter problem flag reset.".format(self.name))
-        if self.result["flag"] & flags["filter_computed"]:
-            self.result["flag"] ^= flags["filter_computed"]
+        if self.result["flag"] & FLAG_DEFS["filter_computed"]:
+            self.result["flag"] ^= FLAG_DEFS["filter_computed"]
             log.debug("Calculator {}: filter status flag reset.".format(self.name))
 
     def make_pulses(self, save=True, use_filter=False):
@@ -225,7 +226,7 @@ class Calculator:
                 A boolean mask that filters out bad pulses from the pulse
                 indices.
         """
-        if self.result['flag'] & flags['pulses_computed'] and save:
+        if self.result['flag'] & FLAG_DEFS['pulses_computed'] and save:
             return
         cfg = self.cfg.pulses
 
@@ -255,13 +256,13 @@ class Calculator:
         # save and return the pulse indices and mask
         if save:
             self.result["pulses"] = pulses
-            self.result["mask"] = mask
+            self.result['mask'] = mask
 
             # set flags
-            self.result['flag'] |= flags['pulses_computed']
-            if self.result["mask"].sum() < cfg.min_pulses:  # not enough good pulses to make a reliable template
+            self.result['flag'] |= FLAG_DEFS['pulses_computed']
+            if self.result['mask'].sum() < cfg.min_pulses:  # not enough good pulses to make a reliable template
                 self.result['template'] = self.fallback_template
-                self.result['flag'] |= flags['bad_pulses'] | flags['bad_template'] | flags['template_computed']
+                self.result['flag'] |= FLAG_DEFS['bad_pulses'] | FLAG_DEFS['bad_template'] | FLAG_DEFS['template_computed']
         return pulses, mask
 
     def make_noise(self, save=True):
@@ -277,7 +278,7 @@ class Calculator:
             psd: numpy.ndarray
                 The computed power spectral density.
         """
-        if self.result['flag'] & flags['noise_computed'] and save:
+        if self.result['flag'] & FLAG_DEFS['noise_computed'] and save:
             return
         self._flag_checks(pulses=True)
         cfg = self.cfg.noise
@@ -314,8 +315,8 @@ class Calculator:
             # set flags and results
             self.result['psd'] = psd
             if n_psd == 0:
-                self.result['flag'] |= flags['bad_noise']
-            self.result['flag'] |= flags['noise_computed']
+                self.result['flag'] |= FLAG_DEFS['bad_noise']
+            self.result['flag'] |= FLAG_DEFS['noise_computed']
         return psd
 
     def make_template(self, save=True, refilter=True, pulses=None, mask=None, phase=None):
@@ -346,7 +347,7 @@ class Calculator:
                 The template fit result. If the template was not fit, None is
                 returned.
         """
-        if self.result['flag'] & flags['template_computed'] and save:
+        if self.result['flag'] & FLAG_DEFS['template_computed'] and save:
             return
         self._flag_checks(pulses=True, noise=True)
         cfg = self.cfg.template
@@ -383,12 +384,12 @@ class Calculator:
             if self._good_template(template):
                 self.result['template'] = template
             else:
-                self.result['flag'] |= flags['bad_template']
+                self.result['flag'] |= FLAG_DEFS['bad_template']
                 self.result['template'] = self.fallback_template
             self.result['template_fit'] = fit_result
             if cfg.fit is not False and (fit_result is None or fit_result.success is False):
-                self.result['flag'] |= flags['bad_template_fit']
-            self.result['flag'] |= flags['template_computed']
+                self.result['flag'] |= FLAG_DEFS['bad_template_fit']
+            self.result['flag'] |= FLAG_DEFS['template_computed']
         return template, fit_result
 
     def make_filter(self, save=True, filter_type=None):
@@ -408,7 +409,7 @@ class Calculator:
             filter_: numpy.ndarray
                 The computed filter.
         """
-        if self.result['flag'] & flags['filter_computed'] and save:
+        if self.result['flag'] & FLAG_DEFS['filter_computed'] and save:
             return
         self._flag_checks(pulses=True, noise=True, template=True)
         cfg = self.cfg.filter
@@ -429,7 +430,7 @@ class Calculator:
         # save and return the filter
         if save:
             self.result['filter'] = filter_
-            self.result['flag'] |= flags['filter_computed']
+            self.result['flag'] |= FLAG_DEFS['filter_computed']
         return filter_
 
     def apply_filter(self, filter_=None, positive=False):
@@ -555,7 +556,7 @@ class Calculator:
             else:
                 line = axes.get_lines()[0]
                 line.set_ydata(10 * np.log10(psd))
-            if self.result["flag"] & flags["bad_noise"]:
+            if self.result["flag"] & FLAG_DEFS["bad_noise"]:
                 axes.set_title("failed: using white noise", color='red')
             else:
                 axes.set_title("successful", color='green')
@@ -598,7 +599,7 @@ class Calculator:
             else:
                 line = axes.get_lines()[0]
                 line.set_ydata(template)
-            if self.result["flag"] & flags["bad_template"]:
+            if self.result["flag"] & FLAG_DEFS["bad_template"]:
                 axes.set_title("failed: using fallback template", color='red')
             else:
                 axes.set_title("successful", color='green')
@@ -639,7 +640,7 @@ class Calculator:
             formatter = ticker.FuncFormatter(lambda x, y: "{:g}".format(x * self.cfg.dt * 1e6))
             axes.xaxis.set_major_formatter(formatter)
             fit.plot_fit(ax=axes, show_init=True, xlabel=r"time [$\mu$s]", ylabel="template [arb.]")
-            if self.result["flag"] & flags["bad_template_fit"]:
+            if self.result["flag"] & FLAG_DEFS["bad_template_fit"]:
                 axes.set_title("failed: using data", color='red')
             else:
                 axes.set_title("successful", color='green')
@@ -689,7 +690,7 @@ class Calculator:
             else:
                 line = axes.get_lines()[0]
                 line.set_ydata(filter_)
-            if flag & flags["bad_filter"]:
+            if flag & FLAG_DEFS["bad_filter"]:
                 axes.set_title("failed", color='red')
             else:
                 axes.set_title("successful", color='green')
@@ -703,16 +704,16 @@ class Calculator:
         return axes
 
     def _init_result(self):
-        self.result = {"pulses": None, "mask": None, "template": None, "template_fit": None, "filter": None,
-                       "psd": None, "flag": flags["not_started"]}
+        self.result = {"pulses": None, 'mask': None, "template": None, "template_fit": None, "filter": None,
+                       "psd": None, "flag": FLAG_DEFS["not_started"]}
 
     def _flag_checks(self, pulses=False, noise=False, template=False):
         if pulses:
-            assert self.result['flag'] & flags['pulses_computed'], "run self.make_pulses() first."
+            assert self.result['flag'] & FLAG_DEFS['pulses_computed'], "run self.make_pulses() first."
         if noise:
-            assert self.result['flag'] & flags['noise_computed'], "run self.make_noise() first."
+            assert self.result['flag'] & FLAG_DEFS['noise_computed'], "run self.make_noise() first."
         if template:
-            assert self.result['flag'] & flags['template_computed'], "run self.make_template first."
+            assert self.result['flag'] & FLAG_DEFS['template_computed'], "run self.make_template first."
 
     def _average_pulses(self, phase, indices, mask):
         # get parameters
@@ -782,63 +783,64 @@ class Calculator:
             self.clear_file_properties()
 
 #
-#     def report(self, filter_type, return_string=False):
-#         """
-#         Print a summary report of the filter calculation.
-#
-#         Args:
-#             filter_type: string
-#                 The filter type for which to plot the summary.
-#             return_string: boolean (optional)
-#                 If True, the report isn't printed and is returned as a string.
-#         """
-#         filter_flags = self.flags[filter_type]
-#         default_template_as_filter = 0
-#         default_template_and_noise_as_filter = 0
-#         calculated_template_as_filter = 0
-#         calculated_template_and_noise_as_filter = 0
-#         bad_template_fits = 0
-#         low_counts = 0
-#         n_filters = 0
-#         for flag in filter_flags:
-#             if flag & flags['filter_computed']:
-#                 n_filters += 1
-#                 bad_pulses = flag & flags['bad_pulses']
-#                 bad_noise = flag & flags['bad_noise']
-#                 bad_template = flag & flags['bad_template']
-#                 bad_template_fit = flag & flags['bad_template_fit']
-#                 if bad_template and bad_noise:
-#                     default_template_as_filter += 1
-#                 elif bad_template and not bad_noise:
-#                     default_template_and_noise_as_filter += 1
-#                 elif not bad_template and bad_noise:
-#                 elif not bad_template and bad_noise:
-#                     calculated_template_as_filter += 1
-#                 else:
-#                     calculated_template_and_noise_as_filter += 1
-#                 if bad_template_fit:
-#                     bad_template_fits += 1
-#                 if bad_pulses:
-#                     low_counts += 1
-#         percent_optimal = calculated_template_and_noise_as_filter / max(1, n_filters) * 100
-#         percent_no_template = default_template_and_noise_as_filter / max(1, n_filters) * 100
-#         percent_no_noise = calculated_template_as_filter / max(1, n_filters) * 100
-#         percent_default = default_template_as_filter / max(1, n_filters) * 100
-#         percent_bad_fits = bad_template_fits / max(1, n_filters) * 100
-#         percent_low_counts = low_counts / max(1, n_filters) * 100
-#         s = ("{:.2f}% of pixels are using optimal filters \n".format(percent_optimal) +
-#              "{:.2f}% of pixels are using the default template with real noise as the filter \n"
-#              .format(percent_no_template) +
-#              "{:.2f}% of pixels are using the calculated template with white noise as the filter \n"
-#              .format(percent_no_noise) +
-#              "{:.2f}% of pixels are using the default template as the filter \n".format(percent_default) +
-#              "--------------------------------------------------------------------------------\n" +
-#              "{:.2f}% of pixels didn't have enough photons to make a template\n".format(percent_low_counts) +
-#              "{:.2f}% of pixels had bad template fits".format(percent_bad_fits))
-#         if return_string:
-#             return s
-#         else:
-#             print(s)
+    def report(self, filter_type, return_string=False):
+        """
+        Print a summary report of the filter calculation.
+
+        Args:
+            filter_type: string
+                The filter type for which to plot the summary.
+            return_string: boolean (optional)
+                If True, the report isn't printed and is returned as a string.
+        """
+        filter_flags = self.flags[filter_type]
+        default_template_as_filter = 0
+        default_template_and_noise_as_filter = 0
+        calculated_template_as_filter = 0
+        calculated_template_and_noise_as_filter = 0
+        bad_template_fits = 0
+        low_counts = 0
+        n_filters = 0
+        for flag in filter_flags:
+            if flag & FLAG_DEFS['filter_computed']:
+                n_filters += 1
+                bad_pulses = flag & FLAG_DEFS['bad_pulses']
+                bad_noise = flag & FLAG_DEFS['bad_noise']
+                bad_template = flag & FLAG_DEFS['bad_template']
+                bad_template_fit = flag & FLAG_DEFS['bad_template_fit']
+                if bad_template and bad_noise:
+                    default_template_as_filter += 1
+                elif bad_template and not bad_noise:
+                    default_template_and_noise_as_filter += 1
+                elif not bad_template and bad_noise:
+                    pass
+                elif not bad_template and bad_noise:
+                    calculated_template_as_filter += 1
+                else:
+                    calculated_template_and_noise_as_filter += 1
+                if bad_template_fit:
+                    bad_template_fits += 1
+                if bad_pulses:
+                    low_counts += 1
+        percent_optimal = calculated_template_and_noise_as_filter / max(1, n_filters) * 100
+        percent_no_template = default_template_and_noise_as_filter / max(1, n_filters) * 100
+        percent_no_noise = calculated_template_as_filter / max(1, n_filters) * 100
+        percent_default = default_template_as_filter / max(1, n_filters) * 100
+        percent_bad_fits = bad_template_fits / max(1, n_filters) * 100
+        percent_low_counts = low_counts / max(1, n_filters) * 100
+        s = ("{:.2f}% of pixels are using optimal filters \n".format(percent_optimal) +
+             "{:.2f}% of pixels are using the default template with real noise as the filter \n"
+             .format(percent_no_template) +
+             "{:.2f}% of pixels are using the calculated template with white noise as the filter \n"
+             .format(percent_no_noise) +
+             "{:.2f}% of pixels are using the default template as the filter \n".format(percent_default) +
+             "--------------------------------------------------------------------------------\n" +
+             "{:.2f}% of pixels didn't have enough photons to make a template\n".format(percent_low_counts) +
+             "{:.2f}% of pixels had bad template fits".format(percent_bad_fits))
+        if return_string:
+            return s
+        else:
+            print(s)
 #
 #     def _collect_data(self):
 #         filter_array = np.empty((self.res_ids.size, self.cfg.filters.filter.nfilter))

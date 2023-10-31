@@ -20,7 +20,7 @@ def swenson_formula(y0, a, increasing: bool):
     return y
 
 
-def plot_psd(data, fs=2e6, fres=1e3, ax=None, fig=None, **kwargs):
+def plot_psd(data, fs=1e6, fres=1e3, ax=None, fig=None, **kwargs):
     plt.figure()
     default = {'fs': fs, 'nperseg': fs / fres}
     default.update(kwargs)
