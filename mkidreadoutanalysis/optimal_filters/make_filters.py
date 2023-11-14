@@ -6,6 +6,8 @@ from astropy.stats import mad_std
 from skimage.restoration import unwrap_phase
 from matplotlib import ticker
 import mkidreadoutanalysis.optimal_filters.config as config
+from logging import getLogger
+from mkidreadoutanalysis.optimal_filters.utils import check_template
 
 # Flags for the optimal filter routine
 FLAG_DEFS = {'not_started': 0,  # calculation has not been started.
@@ -31,6 +33,41 @@ log = logging.getLogger(__name__)
 # DEFAULT_SAVE_NAME = "filter_solution.p"
 # TIMEOUT = 0.001
 
+def make_prefilter(tf=30, offset=30, length=1000, fs=1e6):
+    """
+    Make a pre-filter to find the pulses before stacking. Can be
+    used as an optimal filter if no valid template can be computed.
+
+    Args:
+        tf: pulse fall time in microseconds
+        offset: samples before pulse
+        length: total samples
+        fs: sample rate in hz
+
+    Returns:
+        np array of length, length containing exponential phase pulse
+
+    """
+    time_usec = 1e6*np.arange(length-offset)/fs
+    photon_pulse = -1 * np.exp(-time_usec / tf)
+    return np.concatenate((np.zeros(offset), photon_pulse))
+
+
+def generate_fallback_template(fallback_template: str, tf, offset, ntemplate, dt):
+    if fallback_template:
+        if fallback_template == "default":
+            file_name = pkg.resource_filename(__name__, "template_15us.txt")
+        else:
+            file_name = fallback_template
+        getLogger(__name__).debug(f'Using {file_name} as pre-filter.')
+        template = np.loadtxt(file_name)
+        min_index = np.argmin(template)
+        start = min_index - offset
+        stop = start + ntemplate
+        fallback_template = template[start:stop]
+    else:
+        fallback_template = make_prefilter(tf=tf, offset=offset, length=ntemplate, fs=1/dt)
+    return fallback_template
 
 class Calculator:
     """
@@ -138,7 +175,9 @@ class Calculator:
     @property
     def fallback_template(self):
         if self._fallback_template is None:
-            self._fallback_template = utils.load_fallback_template(self.cfg.pulses)
+            pulse_cfg = self.cfg.pulses
+            self._fallback_template = generate_fallback_template(pulse_cfg.fallback_template, pulse_cfg.tf, pulse_cfg.offset, pulse_cfg.ntemplate, self.cfg.dt)
+            check_template(pulse_cfg, self._fallback_template)
         return self._fallback_template
 
     @fallback_template.setter
@@ -424,7 +463,7 @@ class Calculator:
             self.result["psd"],
             self.cfg.noise.nwindow,
             nfilter=cfg.nfilter,
-            cutoff=self.cfg.template.cutoff,
+            cutoff=self.cfg.filter.cutoff,
             normalize=cfg.normalize)
 
         # save and return the filter
@@ -749,7 +788,7 @@ class Calculator:
 
     def _fit_template(self, template):
         if self.cfg.template.fit not in template_functions.__all__:
-            raise ValueError("{} must be one of {}".format(cfg.fit, template_functions.__all__))
+            raise ValueError("{} must be one of {}".format(self.cfg.fit, template_functions.__all__))
         model = template_functions.Model(self.cfg.template.fit)
         guess = model.guess(template)
         t = np.arange(template.size)

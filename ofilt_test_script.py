@@ -12,6 +12,8 @@ from mkidreadoutanalysis.optimal_filters.config import ConfigThing
 
 
 
+
+
 data = np.load(f'/work/jpsmith/Gen3/Fridge_Tests/r_testing/data/white_fridge/10_18_23/wf_ellison3_6000_650GHz.npz')
 blue_phase=data['blue_phase']*np.pi
 del data
@@ -20,7 +22,11 @@ cfg.registerfromkvlist((('dt', 1e-6),
 ('fit', True),
 ('summary_plot', True),
 ('pulses.unwrap', False),
-('pulses.fallback_template', 'default'),
+#('pulses.fallback_template', '/work/jpsmith/R_Analysis/MKIDReadoutAnalysis/mkidreadoutanalysis/optimal_filters/template_15us.txt'), # specify a pre-computed fallback template,
+                        # will be sliced according to offset and n_template
+('pulses.fallback_template', None), # specify a pre-computed fallback template,
+
+('pulses.tf', 30), # pre filter pulse fall time in microseconds
 ('pulses.ntemplate', 1000), # need to set this larger to calculate covariance matrix in the time domain "accurately" for the number of selected filter coefficients
 ('pulses.offset', 30),
 ('pulses.threshold', 6), # sigma above noise
@@ -32,6 +38,7 @@ cfg.registerfromkvlist((('dt', 1e-6),
 ('noise.max_noise', 5000), #2000
 ('template.percent', 80),
 ('template.cutoff', .2),
+('filter.cutoff', .2),
 ('template.min_tau', 5),
 ('template.max_tau', 100),
 ('template.fit', 'triple_exponential'),
@@ -45,3 +52,5 @@ ofc = Calculator(phase=blue_phase, config=cfg, name='simulated')
 ofc.calculate(clear=False)
 
 ofc.plot()
+
+
