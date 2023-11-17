@@ -182,7 +182,7 @@ def dc_orthogonal(*args, **kwargs):
             norm = np.matmul(vbar.T, filter_2d)
             filter_ = -np.linalg.solve(norm.T, filter_2d.T)[0, ::-1]
         else:
-            filter_ = -filter_2[0, ::-1]  # "-" to give negative pulse heights after filtering
+            filter_ = -filter_2d[0, ::-1]  # "-" to give negative pulse heights after filtering
     return filter_
 
 
@@ -192,3 +192,5 @@ def exp_orthogonal(*args, **kwargs):
 
 def dc_exp_orthogonal(*args, **kwargs):
     raise NotImplementedError
+
+

@@ -82,5 +82,8 @@ class QuasiparticleTimeStream:
     def populate_photons(self):
         for i in range(self.data.size):
             if self.photon_arrivals[i]:
-                self.data[i:i + self.photon_pulse.shape[0]] = self.photon_pulse
+                try:
+                    self.data[i:i + self.photon_pulse.shape[0]] = self.photon_pulse
+                except ValueError:
+                    pass
         return self.data
