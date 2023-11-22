@@ -1,7 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import skimage
-from .quasiparticletimestream import QuasiparticleTimeStream
 
 
 class MKIDReadout:
@@ -14,7 +13,19 @@ class MKIDReadout:
         self.photon_energy_idx = None
         self._trig_holdoff = None
 
-    def record_energies(self, data):
+    def record_energies(self, data: np.ndarray):
+        """
+        Records photon energies.
+
+        Args:
+            data: phase timestream data
+
+        Returns:
+
+        Uses a rolling window to create holdoff-long windows of data starting at every possible index.
+        Windows which begin with a trigger event are selected as photons.
+        The minimum of these windows is computed and recorded as the photon energy.
+        """
         holdoff_views = skimage.util.view_as_windows(data, self._trig_holdoff)  # n_data x holdoff
         trig_views = holdoff_views[self.trig[:holdoff_views.shape[0]]]  # n_triggers x holdoff
         self.photon_energies = np.min(trig_views, axis=1)
@@ -22,7 +33,7 @@ class MKIDReadout:
         return
 
     def trigger(self, data, fs, threshold=-0.7, deadtime=30):
-        """ threshold = phase value (really density of quasiparticles in the inductor) one must exceed to trigger
+        """ threshold = phase value one must exceed to trigger
             holdoff: samples to wait before triggering again.
             deadtime: minimum time in microseconds between triggers"""
 
@@ -36,17 +47,16 @@ class MKIDReadout:
         self.record_energies(data)
         return
 
-    def plot_triggers(self, data, fs=1e6, energies=False, color=None, ax=None, fig=None):
+    def plot_triggers(self, data, fs=1e6, energies=False, color=None, xlim=(60000,100000), ax=None, fig=None):
         tvec = (np.arange(data.shape[0])*1/fs)*1e6
 
         fig, ax = plt.subplots(1, 1, figsize=(15, 5))
-        ax.plot(tvec, data, label='phase timestream', color=color)
-        ax.plot(tvec[self.trig], data[self.trig], '.', label='trigger')
+        ax.plot(tvec[xlim[0]:xlim[1]], data[xlim[0]:xlim[1]], label='phase timestream', color=color)
+        ax.plot(np.ma.masked_outside(tvec[self.trig], xlim[0], xlim[1]), data[self.trig], '.', label='trigger')
         ax.set_xlabel('time (us)')
         ax.set_ylabel('phase (radians)')
-        # plt.xticks(rotation = 45)
         if energies:
-            plt.plot(tvec[self.photon_energy_idx], data[self.photon_energy_idx], 'o', label='energy')
+            ax.plot(np.ma.masked_outside(tvec[self.photon_energy_idx], xlim[0], xlim[1]), data[self.photon_energy_idx], 'o', label='energy')
         ax.legend(loc='upper right')
 
 

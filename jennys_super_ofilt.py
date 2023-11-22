@@ -9,35 +9,13 @@ from mkidreadoutanalysis.mkidnoiseanalysis import plot_channel_fft, plot_psd, ap
 from mkidreadoutanalysis.resonator import *
 from mkidreadoutanalysis.mkidnoiseanalysis import plot_psd
 from mkidreadoutanalysis.mkidreadout import MKIDReadout
+from mkidreadoutanalysis.jenny_ofilt_helpers import generate_fake_data
 import scipy as sp
 
 
 
-#quasiparticle_timestream = QuasiparticleTimeStream(fs = 1e6, ts = 10)
-#quasiparticle_timestream.gen_quasiparticle_pulse(tf=30);
-#quasiparticle_timestream.gen_photon_arrivals(cps=1551)
-#quasiparticle_timestream.populate_photons()
-# Create resonator and compute S21
-#resonator = Resonator(f0=4.0012e9, qi=200000, qc=15000, xa=1e-9, a=0, tls_scale=1) #1e2
-#rf = RFElectronics(gain=(3.0, 0, 0), phase_delay=0, cable_delay=50e-9)
-#freq = FrequencyGrid( fc=4.0012e9, points=1000, span=500e6)
-#sweep = ResonatorSweep(resonator, freq, rf)
-#lit_res_measurment = ReadoutPhotonResonator(resonator, quasiparticle_timestream, freq, rf)
-# toggle white noise and line noise
-#lit_res_measurment.noise_on = True
+#phase_timestream = generate_fake_data()
 
-# adjust white noise scale
-#lit_res_measurment.rf.noise_scale = 10
-
-# configure line noise
-#lit_res_measurment.rf.line_noise.freqs = ([60, 50e3, 100e3, 250e3, -300e3, 300e3, 500e3]) # Hz and relative to center of bin (MKID we are reading out)
-#lit_res_measurment.rf.line_noise.amplitudes = ([0.5, 0.1, 0.5, 0.3, 0.1, 0.5, 0.01])
-#lit_res_measurment.rf.line_noise.phases = ([0, 0.5, 0,1.3,0.5, 0.2, 2.4])
-
-#lit_res_measurment.rf.line_noise.freqs = ([500e3])
-#lit_res_measurment.rf.line_noise.amplitudes = ([0.00001])
-#lit_res_measurment.rf.line_noise.phases = ([0])
-#phase_data, _ = lit_res_measurment.basic_coordinate_transformation()
 
 def _shift_and_normalize(template, ntemplate, offset):
     template = template.copy()

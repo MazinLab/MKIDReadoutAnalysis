@@ -18,12 +18,12 @@ data = np.load(f'/work/jpsmith/Gen3/Fridge_Tests/r_testing/data/white_fridge/10_
 blue_phase=data['red_phase']*np.pi
 del data
 
-blue_phase_readout = MKIDReadout()
-blue_phase_readout.trigger(blue_phase, fs = 1e6, threshold=-1, deadtime=60)
+#blue_phase_readout = MKIDReadout()
+#blue_phase_readout.trigger(blue_phase, fs = 1e6, threshold=-1, deadtime=60)
 #plt.xlim([60000,1000000]);
-x = slice(16000, 19000)
-blue_phase_dark_mean = blue_phase[x].mean()
-blue_phase_max_location, blue_phase_fwhm = compute_r(blue_phase_readout.photon_energies - blue_phase_dark_mean, color='blue', plot=False)
+#x = slice(16000, 19000)
+#blue_phase_dark_mean = blue_phase[x].mean()
+#blue_phase_max_location, blue_phase_fwhm = compute_r(blue_phase_readout.photon_energies - blue_phase_dark_mean, color='blue', plot=False)
 #print(f'Max Phase: {-blue_phase_ofilt_max_location} FWHM: {blue_phase_ofilt_fwhm} radians')
 #plt.title('Blue Photons Optimal Filter (409.5 nm), FPGA Phase');
 #plt.show()
@@ -39,7 +39,7 @@ cfg.registerfromkvlist((('dt', 1e-6),
 ('pulses.fallback_template', None), # specify a pre-computed fallback template,
 
 ('pulses.tf', 30), # pre filter pulse fall time in microseconds
-('pulses.ntemplate', 500), # need to set this larger to calculate covariance matrix in the time domain "accurately" for the number of selected filter coefficients
+('pulses.ntemplate', 5000), # need to set this larger to calculate covariance matrix in the time domain "accurately" for the number of selected filter coefficients
 ('pulses.offset', 10),
 ('pulses.threshold', 6), # sigma above noise
 ('pulses.separation', 500),
@@ -61,7 +61,7 @@ cfg.registerfromkvlist((('dt', 1e-6),
 
 ofc = Calculator(phase=blue_phase, config=cfg, name='simulated')
 
-ofc.calculate(clear=True)
+ofc.calculate(clear=False)
 plt.show()
 
 blue_phase_ofilt = sp.signal.convolve(blue_phase, ofc.result['filter'], mode='same')
