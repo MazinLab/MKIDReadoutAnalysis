@@ -10,6 +10,7 @@ from scipy.linalg import toeplitz
 import pkg_resources as pkg
 import multiprocessing as mp
 
+
 try:
     import progressbar as pb
     HAS_PB = True
@@ -20,20 +21,6 @@ log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())
 global _counter
 global _pbar
-
-
-def load_fallback_template(config):
-    if config.fallback_template == "default":
-        file_name = pkg.resource_filename(__name__, "template_15us.txt")
-    else:
-        file_name = config.fallback_template
-    template = np.loadtxt(file_name)
-    min_index = np.argmin(template)
-    start = min_index - config.offset
-    stop = start + config.ntemplate
-    fallback_template = template[start:stop]
-    check_template(config, fallback_template)
-    return fallback_template
 
 
 def check_template(config, template):
