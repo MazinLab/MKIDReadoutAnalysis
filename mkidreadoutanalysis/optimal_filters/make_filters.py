@@ -412,7 +412,7 @@ class Calculator:
         # filter again to get the best possible pulse locations
         if self._good_template(template) and refilter:
             filter_ = filter_functions.dc_orthogonal(template, self.result['psd'], self.cfg.noise.nwindow,
-                                                     cutoff=cfg.cutoff)
+                                                     cutoff=self.cfg.filter.cutoff)
             pulses, mask = self.make_pulses(save=False, use_filter=filter_)
             if mask.any():
                 template, fit_result = self.make_template(save=False, refilter=False, pulses=pulses, mask=mask,
