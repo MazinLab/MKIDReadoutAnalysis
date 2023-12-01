@@ -123,7 +123,7 @@ def setup_progress():
 
 
 def covariance_from_psd(psd, size=None, window=None, dt=1.):
-    autocovariance = np.real(np.fft.irfft(psd / 2., window) / dt)  # divide by 2 for single sided PSD
+    autocovariance = np.real(np.fft.irfft(psd / 2., n=window) / dt)  # divide by 2 for single sided PSD
     if size is not None:
         autocovariance = autocovariance[:size]
     covariance = sp.linalg.toeplitz(autocovariance)

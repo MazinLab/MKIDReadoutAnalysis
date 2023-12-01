@@ -17,6 +17,13 @@ def shift_and_normalize(template, ntemplate, offset):
     return template
 
 
+def normalize_only(template):
+    template = template.copy()
+    if template.min() != 0:  # all weights could be zero
+        template /= np.abs(template.min())  # correct over all template height
+    return template
+
+
 def generate_fake_data(res: Resonator = Resonator(f0=4.0012e9, qi=200000, qc=15000, xa=1e-9, a=0, tls_scale=1), fs=1e6,
                        ts=10, tf=30, cps=1551,
                        rf: RFElectronics = RFElectronics(gain=(3.0, 0, 0), phase_delay=0, cable_delay=50e-9),
@@ -50,23 +57,23 @@ def generate_fake_data(res: Resonator = Resonator(f0=4.0012e9, qi=200000, qc=150
 
 
 def ofilt_summary_plot(psd, dt, noise_nwindow, filter, template):
-
     fig, ax = plt.subplots(nrows=2, ncols=2, figsize=(9, 9))
     # PSD
-    ax[0,0].set_xlabel("frequency [Hz]")
-    ax[0,0].set_ylabel("PSD [dBc / Hz]")
+    ax[0, 0].set_xlabel("frequency [Hz]")
+    ax[0, 0].set_ylabel("PSD [dBc / Hz]")
     f = np.fft.rfftfreq(noise_nwindow, d=dt)
-    ax[0,0].semilogx(f, 10 * np.log10(psd))
+    ax[0, 0].semilogx(f, 10 * np.log10(psd))
     # FILTER
-    ax[0,1].set_xlabel(r"time [$\mu$s]")
-    ax[0,1].set_ylabel("filter coefficient [radians]")
-    ax[0,1].plot(np.arange(filter.size) * dt * 1e6, filter)
+    ax[0, 1].set_xlabel(r"time [$\mu$s]")
+    ax[0, 1].set_ylabel("filter coefficient [radians]")
+    ax[0, 1].plot(np.arange(filter.size) * dt * 1e6, filter)
     # TEMPLATE
-    ax[1,0].set_xlabel(r"time [$\mu$s]")
-    ax[1,0].set_ylabel("template [arb.]")
-    ax[1,0].plot(np.arange(template.size) * dt * 1e6, template)
+    ax[1, 0].set_xlabel(r"time [$\mu$s]")
+    ax[1, 0].set_ylabel("template [arb.]")
+    ax[1, 0].plot(np.arange(template.size) * dt * 1e6, template)
     ax[1, 0].plot(np.arange(filter.size) * dt * 1e6, template[:filter.size])
     plt.show()
+
 
 def ofilt_plot_comparison(phase_data: np.ndarray, readout: MKIDReadout, phase_ofilt: np.ndarray,
                           readout_ofilt: MKIDReadout, data_key: str, xlim: (int, int) = (60000, 100000)):

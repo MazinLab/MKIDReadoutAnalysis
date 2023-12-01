@@ -80,6 +80,7 @@ def wiener(*args, **kwargs):
     # collect inputs
     template, psd, nwindow = args[0], args[1], args[2]
     nfilter = kwargs.get("nfilter", len(template))
+    dt = kwargs.get("dt", 1)
     cutoff = kwargs.get("cutoff", False)
     fft = kwargs.get("fft", False)
     normalize = kwargs.get("normalize", True)
@@ -103,7 +104,7 @@ def wiener(*args, **kwargs):
         filter_ = np.roll(filter_, -1)  # roll to put the zero time index on the far right
 
     else:  # compute filter in the time domain (nfilter should be << nwindow for this method to be better than fft)
-        covariance = utils.covariance_from_psd(psd, size=nfilter, window=nwindow)
+        covariance = utils.covariance_from_psd(psd, size=nfilter, window=nwindow, dt=dt) # SHOULD THIS BE DT???
         filter_ = np.linalg.solve(covariance, template)[::-1]
 
     # remove high frequency filter content
@@ -155,6 +156,7 @@ def dc_orthogonal(*args, **kwargs):
     nfilter = kwargs.get("nfilter", len(template))
     cutoff = kwargs.get("cutoff", False)
     fft = kwargs.get("fft", False)
+    dt = kwargs.get("dt", 1)
     normalize = kwargs.get("normalize", True)
 
     if fft:  # compute the filter in the frequency domain (introduces periodicity assumption)
@@ -167,7 +169,7 @@ def dc_orthogonal(*args, **kwargs):
             template = np.pad(template, (0, nfilter - len(template)), mode='linear_ramp')
         elif nfilter < len(template):  # truncate the template if it's longer than the filter
             template = template[:nfilter]
-        covariance = utils.covariance_from_psd(psd, size=nfilter, window=nwindow)
+        covariance = utils.covariance_from_psd(psd, size=nfilter, window=nwindow, dt=dt)
         vbar = np.vstack((template, np.ones_like(template))).T  # DC orthogonality vector
 
         # compute the filter from the covariance matrix
