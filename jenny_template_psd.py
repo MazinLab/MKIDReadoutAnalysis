@@ -13,8 +13,11 @@ import scipy as sp
 import matplotlib.pyplot as plt
 
 
+lowpass = np.array([6,0,-4,-3,5,6,-6,-13,7,44,64,44,7,-13,-6,6,5,-3,-4,0,6])
+lowpass = lowpass / lowpass.sum()
+
 ## IMPORT / GENERATE DATA
-data_key = 'blue' # options: 'red', 'ir', 'None' (generates fake data)
+data_key = 'ir' # options: 'red', 'ir', 'None' (generates fake data)
 if data_key == 'None':
     phase_data = generate_fake_data()
 else:
@@ -26,9 +29,9 @@ else:
 fs = 1e6 # Sampling rate in Hz
 threshold = -0.8 # Phase threshold in radians below which to trigger
 deadtime = 80 # Deadtime in microseconds of time to wait before another trigger is possible
-n_template=1000 # Number of samples in the template, this should be 5-10x the length of the filter for best accuracy
-offset=20 #5 samples to include before pulse minimum. Useful for fine-tuning ~short filters
-n_filter = 1000 # number of taps in final optimal filter
+n_template=500 # Number of samples in the template, this should be 5-10x the length of the filter for best accuracy
+offset=50 #5 samples to include before pulse minimum. Useful for fine-tuning ~short filters
+n_filter = 500 # number of taps in final optimal filter
 cutoff = 0.1 # lowpass cutoff used during filter generation to compensate for effects of lowpass filters in digital readout?
 dt = 1/fs
 window_filter = True
@@ -41,7 +44,7 @@ raw_pulses = phase_data[(readout.photon_energy_idx + np.arange(-offset, n_templa
 
 
 ## PROCESS W/O OPTIMAL FILTERS
-process_raw = False
+process_raw = True
 if process_raw:
     dark_sl = slice(16000, 19000) # TODO: make this automatic
     phase_dark_mean = phase_data[dark_sl].mean()
@@ -71,20 +74,41 @@ getLogger(__name__).debug(
         f'Eliminating {pulses_noisecut.shape[0] - typical_integrals.sum()} pulses which appear to be doubles.')
 pulses_final = pulses_noisecut[typical_integrals]
 
+pulse_psd = np.zeros(int(500 / 2. + 1))
+
 ## MAKE TEMPLATE PULSE
+for i in range(pulses_final.shape[0]):
+    pulse_psd += sp.signal.welch(pulses_final[i,:] - pulses_final[i,:].mean(), fs=1. / dt, nperseg=500, detrend="constant",
+                               return_onesided=True, scaling="density")[1]
+
+pulse_psd = pulse_psd / pulses_final.shape[0]
+
+
 raw_template = pulses_final.sum(axis=0)
 shifted_template = raw_template-raw_template[0:offset//2].mean() # make pulse start at 0
+
+
+lp_filter_template = sp.signal.convolve(shifted_template,lowpass, mode='same')
+
 # window template
 template_window = -sp.signal.windows.hamming(shifted_template.size, sym=False)
-windowed_template = -shifted_template*template_window
-normalized_template = shift_and_normalize(shifted_template, n_template, offset)
+#windowed_template = -shifted_template*template_window
+#normalized_template = shift_and_normalize(shifted_template, n_template, offset)
+normalized_template = shift_and_normalize(lp_filter_template, n_template, offset)
+
 #normalized_template = normalize_only(windowed_template)
 
+
+a = sp.interpolate.UnivariateSpline(np.arange(normalized_template.size), normalized_template, s=0)
+interp_x = np.linspace(0,normalized_template.size-1,normalized_template.size*2-1)
+interp_temp = a(interp_x)
+filtered_temp = sp.signal.convolve(interp_temp,lowpass, mode='same')
+ds_temp = filtered_temp[::2]
 
 ## MAKE NOISE
 # noise-specific configs
 isolation = 200 # number of samples after threshold is crossed to ignore (allows pulse to recover to baseline)
-noise_npoints = 1000#50 # psd is calcualted from overlapping segments of this length (defualt is 50% ovlp).
+noise_npoints = 500#50 # psd is calcualted from overlapping segments of this length (defualt is 50% ovlp).
 n_ovl = 2 # factor by which noise_npoints is multiplied by to determine the minimum noise window
 noise_threshold = 0.4 # value above which will be considered noise (usually set more conservativly than pulse threshold)
 max_noise_windows = 2000 # maximum number of windows noise_npoints long to calculate
@@ -120,20 +144,25 @@ else:
 
 ## MAKE OPTIMAL FILTER
 optimal_filter = wiener(normalized_template, psd, noise_npoints, nfilter=n_filter, cutoff=cutoff, dt=dt, normalize=True)
+optimal_filter = optimal_filter - optimal_filter.mean()
+optimal_filter = -1*optimal_filter
+#optimal_filter = np.fft.fftshift(optimal_filter)
+#optimal_filter = optimal_filter[::-1]
 if window_filter:
     window = sp.signal.windows.hamming(optimal_filter.size, sym=False)
     optimal_filter_w = window * optimal_filter
 
 
 ## PLOT OPTIMAL FILTER SUMMARY
-ofilt_summary_plot(psd, dt, noise_npoints, optimal_filter, normalized_template)
+ofilt_summary_plot(psd, dt, noise_npoints, optimal_filter, normalized_template, cutoff)
 
 ## APPLY FILTER
 phase_ofilt = sp.signal.convolve(phase_data,optimal_filter, mode='same')
+phase_ofilt = -phase_ofilt
 readout_ofilt = MKIDReadout()
-readout_ofilt.trigger(phase_ofilt, fs = 1e6, threshold=-0.5, deadtime=60)
+readout_ofilt.trigger(phase_ofilt, fs = 1e6, threshold=-0.7, deadtime=60)
 phase_ofilt_dark_mean = noise_data.mean()
-phase_ofilt_max_location, phase_ofilt_fwhm = compute_r(readout_ofilt.photon_energies - phase_ofilt_dark_mean, color='blue', plot=False)
+phase_ofilt_max_location, phase_ofilt_fwhm = compute_r(readout_ofilt.photon_energies - phase_ofilt_dark_mean, color='lightcoral', plot=True)
 #print(f'Max Phase: {-blue_phase_ofilt_max_location} FWHM: {blue_phase_ofilt_fwhm} radians')
 #plt.title('Blue Photons Optimal Filter (409.5 nm), FPGA Phase');
 #plt.show()

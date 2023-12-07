@@ -3,7 +3,7 @@ import logging
 import matplotlib.pyplot as plt
 from mkidreadoutanalysis.resonator import *
 from mkidreadoutanalysis.mkidreadout import *
-
+from scipy import signal
 
 def shift_and_normalize(template, ntemplate, offset):
     template = template.copy()
@@ -56,22 +56,49 @@ def generate_fake_data(res: Resonator = Resonator(f0=4.0012e9, qi=200000, qc=150
     return phase_data
 
 
-def ofilt_summary_plot(psd, dt, noise_nwindow, filter, template):
+def plot_lowpass(fs, filter_coe):
+    w, h = signal.freqz(b=filter_coe, a=1)
+    x = w * fs * 1.0 / (2 * np.pi)
+    y = 20 * np.log10(abs(h))
+    plt.figure(figsize=(10, 5))
+    plt.semilogx(x, y)
+    plt.ylabel('Amplitude [dB]')
+    plt.xlabel('Frequency [Hz]')
+    plt.title('Frequency response')
+    plt.grid(which='both', linestyle='-', color='grey')
+    plt.show()
+
+def ofilt_summary_plot(psd, dt, noise_nwindow, filter, template, cutoff, fs=1e6):
     fig, ax = plt.subplots(nrows=2, ncols=2, figsize=(9, 9))
     # PSD
     ax[0, 0].set_xlabel("frequency [Hz]")
     ax[0, 0].set_ylabel("PSD [dBc / Hz]")
-    f = np.fft.rfftfreq(noise_nwindow, d=dt)
-    ax[0, 0].semilogx(f, 10 * np.log10(psd))
-    # FILTER
-    ax[0, 1].set_xlabel(r"time [$\mu$s]")
-    ax[0, 1].set_ylabel("filter coefficient [radians]")
-    ax[0, 1].plot(np.arange(filter.size) * dt * 1e6, filter)
+    ax[0, 0].axvline(cutoff*fs/2, color='black', linestyle='--')
+    f_noise = np.fft.rfftfreq(noise_nwindow, d=dt)
+    ax[0, 0].semilogx(f_noise, 10 * np.log10(psd), label='noise')
+    f_template = np.fft.rfftfreq(template.size, d=dt)
+    template_fft = 1e-8*np.abs(np.fft.rfft(template))
+    ax[0, 0].semilogx(f_template, 10 * np.log10(template_fft), label='template')
+    ax[0, 0].legend(loc='upper right')
+    ax[0, 0].set_title('PSD')
+    # FOURIER QUOTIENT
+    ax[0, 1].semilogx(f_noise, 10 * np.log10(np.abs(np.conj(np.fft.rfft(template)) / psd)))
+    ax[0, 1].set_xlabel("frequncy [Hz]")
+    ax[0, 1].set_ylabel("dB")
+    ax[0, 1].axvline(cutoff*fs/2, color='black', linestyle='--')
+    ax[0, 1].set_title('Fourier Quotient')
     # TEMPLATE
     ax[1, 0].set_xlabel(r"time [$\mu$s]")
     ax[1, 0].set_ylabel("template [arb.]")
     ax[1, 0].plot(np.arange(template.size) * dt * 1e6, template)
     ax[1, 0].plot(np.arange(filter.size) * dt * 1e6, template[:filter.size])
+    ax[1, 0].set_title('Template')
+    # FILTER
+    ax[1, 1].set_xlabel(r"time [$\mu$s]")
+    ax[1, 1].set_ylabel("filter coefficient [radians]")
+    ax[1, 1].plot(np.arange(filter.size) * dt * 1e6, filter)
+    ax[1, 1].set_title('Filter')
+    plt.tight_layout()
     plt.show()
 
 
