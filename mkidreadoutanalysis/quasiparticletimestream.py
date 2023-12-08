@@ -84,11 +84,12 @@ class QuasiparticleTimeStream:
             getLogger(__name__).warning(f"Warning: No photons arrived. :'(")
         return self.photon_arrivals
 
-    def populate_photons(self, magnitude=1.0):
+    def populate_photons(self, magnitude=None):
+        if self.photon_pulse is None or magnitude is not None:
+            self.gen_quasiparticle_pulse(magnitude=magnitude)
         for event_i, i in enumerate(np.argwhere(self.photon_arrivals).flat):
             if i + self.photon_pulse.size >= self.data.size:
                 break
-            self.gen_quasiparticle_pulse(magnitude=magnitude)
             self.data[i:i + self.photon_pulse.size] = self.photon_pulse
         return self.data
 
