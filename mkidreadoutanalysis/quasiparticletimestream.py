@@ -38,6 +38,7 @@ class QuasiparticleTimeStream:
         self.tvec = np.arange(0, self.points) / self.fs
         self.data = np.zeros(self.points)
         self._holdoff = None
+        self._pulse_time = None
         self.photon_arrivals = None
         self.photon_pulse = None
         self.pulse_time = None
@@ -52,12 +53,16 @@ class QuasiparticleTimeStream:
         plt.xlabel('time (sec)')
         plt.ylabel(r"$\propto \Delta$ Quasiparticle Density")
 
-    def gen_quasiparticle_pulse(self, magnitude=1, tf=30):
+    def gen_quasiparticle_pulse(self, magnitude=1, tf=30, phasing=0):
         """generates an instantaneous change in quasipaprticle density
          which relaxes in tf fall time in usec."""
-        tp = np.linspace(0, 10 * tf, int(self.fs*(10 * tf * 1e-6)))  # pulse duration
-        self.photon_pulse = magnitude*np.exp(-tp / tf)
-        self.pulse_time = tp
+        phasing = min(max(phasing,0), 1)*1e6/self.fs
+        if self._pulse_time is None or self._pulse_time[0]!=(self.fs,tf):
+            t = np.linspace(0, 10 * tf, int(self.fs*(10 * tf * 1e-6)))  # pulse duration
+            self._pulse_time = ((self.fs, tf), t)
+        self.pulse_time = self._pulse_time[1]
+        self.photon_pulse = magnitude*np.exp(-self.pulse_time+phasing / tf)
+        return self.photon_pulse
 
     def plot_pulse(self, ax=None, fig=None):
         plt.figure()
@@ -79,11 +84,20 @@ class QuasiparticleTimeStream:
             getLogger(__name__).warning(f"Warning: No photons arrived. :'(")
         return self.photon_arrivals
 
-    def populate_photons(self):
-        for i in range(self.data.size):
-            if self.photon_arrivals[i]:
-                try:
-                    self.data[i:i + self.photon_pulse.shape[0]] = self.photon_pulse
-                except ValueError:
-                    pass
+    def populate_photons(self, magnitude=None):
+        if self.photon_pulse is None or magnitude is not None:
+            self.gen_quasiparticle_pulse(magnitude=magnitude)
+        for event_i, i in enumerate(np.argwhere(self.photon_arrivals).flat):
+            if i + self.photon_pulse.size >= self.data.size:
+                break
+            self.data[i:i + self.photon_pulse.size] = self.photon_pulse
+        return self.data
+
+    def populate_photons_random_phasing(self, magnitude=1.0):
+        self.photon_pulse_phases = self.photon_arrival_rng.uniform(0,1,size=self.photon_arrivals.sum())
+        for event_i, i in enumerate(np.argwhere(self.photon_arrivals).flat):
+            if i+self.photon_pulse.size >= self.data.size:
+                break
+            self.gen_quasiparticle_pulse(magnitude=magnitude, phasing=self.photon_pulse_phases[event_i])
+            self.data[i:i + self.photon_pulse.size] = self.photon_pulse
         return self.data
