@@ -15,7 +15,7 @@ from mkidreadoutanalysis.jenny_ofilt_helpers import generate_fake_data, ofilt_pl
 
 
 ## IMPORT / GENERATE DATA
-data_key = 'blue' # options: 'red', 'ir', 'None' (generates fake data)
+data_key = 'ir' # options: 'red', 'ir', 'None' (generates fake data)
 if data_key == 'None':
     phase_data = generate_fake_data()
 else:
@@ -34,12 +34,12 @@ cfg.registerfromkvlist((('dt', 1e-6),
 ('pulses.fallback_template', None), # specify a pre-computed fallback template,
 
 ('pulses.tf', 30), # pre filter pulse fall time in microseconds
-('pulses.ntemplate', 50), # need to set this larger to calculate covariance matrix in the time domain "accurately" for the number of selected filter coefficients
-('pulses.offset', 5),
+('pulses.ntemplate', 500), # need to set this larger to calculate covariance matrix in the time domain "accurately" for the number of selected filter coefficients
+('pulses.offset', 10),
 ('pulses.threshold', 6), # sigma above noise
 ('pulses.separation', 500),
-('pulses.min_pulses', 10000),
-('noise.nwindow', 50), #1000
+('pulses.min_pulses', 500),
+('noise.nwindow', 500), #1000
 ('noise.isolation', 200),
 ('noise.max_windows', 2000), # maximum number of nwindows of samples needed before moving on [int]
 #('noise.max_noise', 2000), #2000

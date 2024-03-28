@@ -5,7 +5,7 @@ import skimage
 
 class MKIDReadout:
     """ A class containing readout functions and their specifications.
-"""
+    """
 
     def __init__(self):
         self.trig = None
