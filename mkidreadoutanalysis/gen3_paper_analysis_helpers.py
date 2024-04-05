@@ -120,7 +120,7 @@ def place_annotations(pdfs, phase_dist_centers, raw_r, colors, ax):
                     xytext=(10, 0.1), textcoords='offset points', fontsize=16, color=colors[i])
 
 
-def make_r_hist_plt(ax, phase_dist_centers, raw_r, pdfs, normalized_energies):
+def make_r_hist_plt(ax, phase_dist_centers, raw_r, pdfs, normalized_energies, special_bin=None):
     xticks = np.sort(np.concatenate((np.round(phase_dist_centers, decimals=1), np.array([-np.pi, -np.pi / 2]))))
 
     xlabels = []
@@ -143,8 +143,12 @@ def make_r_hist_plt(ax, phase_dist_centers, raw_r, pdfs, normalized_energies):
     x = np.linspace(normalized_energies[0].min(), normalized_energies[0].max(), 1000)
     ax.plot(x, pdfs[0](x), marker='o', markevery=5, markerfacecolor='#0015B0', markeredgecolor='#0015B0', color='blue',
             linewidth=3)
-    ax.hist(normalized_energies[1], histtype='stepfilled', bins='auto', density=True, color='red', alpha=0.7,
-            label=f'663.1 nm R={raw_r[1]:.1f}');
+    if special_bin:
+        ax.hist(normalized_energies[1], histtype='stepfilled', bins=special_bin, density=True, color='red', alpha=0.7,
+                label=f'663.1 nm R={raw_r[1]:.1f}');
+    else:
+        ax.hist(normalized_energies[1], histtype='stepfilled', bins='auto', density=True, color='red', alpha=0.7,
+                label=f'663.1 nm R={raw_r[1]:.1f}');
     x = np.linspace(normalized_energies[1].min(), normalized_energies[1].max(), 1000)
     ax.plot(x, pdfs[1](x), marker='d', markevery=5, markerfacecolor='#AB1A00', markeredgecolor='#AB1A00', color='red',
             linewidth=3)
