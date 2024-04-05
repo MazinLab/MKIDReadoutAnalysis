@@ -83,18 +83,31 @@ def compute_pdfs(energies):
     return pdfs
 
 
+def get_processed_data(filedir, fname):
+    data = np.load(os.path.join(filedir, fname))
+    phase_dist_centers = data['phase_dist_centers']
+    raw_r = data['raw_r']
+    pdf_x = data['pdf_x']
+    pdf_y = data['pdf_y']
+    return phase_dist_centers, raw_r, pdf_x, pdf_y
+
+
 def get_energy_hist_points(filedir, filename, colors):
     phase_dist_centers = np.empty(3)
     phase_dist_fwhm = np.empty(3)
     normalized_energies = []
+    pdfs_x = []
+    pdfs_y = []
 
     for i, color in enumerate(colors):
-        fname = filename.replace('phase_', 'phase_' + color + '_')
+        fname = filename.replace('phase_', 'phase_' + color + '_unity')
         fname += '_processed.npz'
         data = np.load(os.path.join(filedir, fname))
         normalized_energies.append(data['normalized_energies'])
         phase_dist_centers[i] = -data['max_location']
         phase_dist_fwhm[i] = data['fwhm']
+        pdfs_x.append(data['pdf_x'])
+        pdfs_y.append(data['pdf_y'])
 
     lasers = np.array([405.9, 663.1, 808.0])
     hc = 1240  # eV
@@ -107,20 +120,20 @@ def get_energy_hist_points(filedir, filename, colors):
     delta_e = slope * phase_dist_fwhm
     raw_r = -energies / delta_e
 
-    return phase_dist_centers, raw_r, normalized_energies
+    return phase_dist_centers, raw_r, normalized_energies, pdfs_x, pdfs_y
 
 
-def place_annotations(pdfs, phase_dist_centers, raw_r, colors, ax):
-    for i in range(len(pdfs)):
-        y = pdfs[i](phase_dist_centers[i])
+def place_annotations(pdf_x, pdf_y, phase_dist_centers, raw_r, colors, ax):
+    for i in range(len(pdf_x)):
+        y = pdf_y[i].max()
         x = phase_dist_centers[i]
 
         ax.annotate(f'R={np.round(raw_r[i])}',
                     xy=(x, y), xycoords='data',
-                    xytext=(10, 0.1), textcoords='offset points', fontsize=16, color=colors[i])
+                    xytext=(-30, 10), textcoords='offset points', fontsize=16, color=colors[i])
 
 
-def make_r_hist_plt(ax, phase_dist_centers, raw_r, pdfs, normalized_energies, special_bin=None):
+def make_r_hist_plt(ax, phase_dist_centers, raw_r, pdf_x, pdf_y):
     xticks = np.sort(np.concatenate((np.round(phase_dist_centers, decimals=1), np.array([-np.pi, -np.pi / 2]))))
 
     xlabels = []
@@ -135,28 +148,18 @@ def make_r_hist_plt(ax, phase_dist_centers, raw_r, pdfs, normalized_energies, sp
 
     ax.set_xticks(xticks, labels=xlabels, fontsize=14)
 
-    place_annotations(pdfs, phase_dist_centers, raw_r, ['#0015B0', '#AB1A00', '#AF49A0'], ax)
+    place_annotations(pdf_x, pdf_y, phase_dist_centers, raw_r, ['#0015B0', '#AB1A00', '#AF49A0'], ax)
     ax.tick_params(axis='both', which='major', labelsize=14)
-
-    ax.hist(normalized_energies[0], histtype='stepfilled', bins='auto', density=True, color='blue', alpha=0.7,
-            label=f'405.9 nm R={raw_r[0]:.1f}');
-    x = np.linspace(normalized_energies[0].min(), normalized_energies[0].max(), 1000)
-    ax.plot(x, pdfs[0](x), marker='o', markevery=5, markerfacecolor='#0015B0', markeredgecolor='#0015B0', color='blue',
+    ax.plot(pdf_x[0], pdf_y[0], marker='o', markevery=5, markerfacecolor='#0015B0', markeredgecolor='#0015B0', color='blue',
             linewidth=3)
-    if special_bin:
-        ax.hist(normalized_energies[1], histtype='stepfilled', bins=special_bin, density=True, color='red', alpha=0.7,
-                label=f'663.1 nm R={raw_r[1]:.1f}');
-    else:
-        ax.hist(normalized_energies[1], histtype='stepfilled', bins='auto', density=True, color='red', alpha=0.7,
-                label=f'663.1 nm R={raw_r[1]:.1f}');
-    x = np.linspace(normalized_energies[1].min(), normalized_energies[1].max(), 1000)
-    ax.plot(x, pdfs[1](x), marker='d', markevery=5, markerfacecolor='#AB1A00', markeredgecolor='#AB1A00', color='red',
+    ax.fill_between(pdf_x[0], pdf_y[0], 0, color='blue', alpha=0.7)
+    ax.plot(pdf_x[1], pdf_y[1], marker='d', markevery=5, markerfacecolor='#AB1A00', markeredgecolor='#AB1A00', color='red',
             linewidth=3)
-    ax.hist(normalized_energies[2], histtype='stepfilled', bins='auto', density=True, color='lightcoral', alpha=0.7,
-            label=f'978.0 nm R={raw_r[2]:.1f}');
-    x = np.linspace(normalized_energies[2].min(), normalized_energies[2].max(), 1000)
-    ax.plot(x, pdfs[2](x), marker='v', markevery=5, markerfacecolor='#AF49A0', markeredgecolor='#AF49A0',
+    ax.fill_between(pdf_x[1], pdf_y[1], 0, color='red', alpha=0.7)
+    ax.plot(pdf_x[2], pdf_y[2], marker='v', markevery=5, markerfacecolor='#AF49A0', markeredgecolor='#AF49A0',
             color='lightcoral', linewidth=3)
+    ax.fill_between(pdf_x[2], pdf_y[2], 0, color='lightcoral', alpha=0.7)
+
 
     ax.set_xlabel('Phase', fontsize=16)
     ax.set_xlim([-np.pi, -1.5])
