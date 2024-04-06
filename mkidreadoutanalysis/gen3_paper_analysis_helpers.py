@@ -9,6 +9,12 @@ from mkidreadoutanalysis.mkidro import MKIDReadout
 from mkidreadoutanalysis.mkidnoiseanalysis import quadratic_spline_roots
 
 
+def get_dac_fft(filedir, filename, noise):
+    data = np.load(os.path.join(filedir, filename))
+    waveform = data['dac_waveform']
+    waveform_noise = waveform + noise
+    waveform_fft = np.abs(np.fft.fftshift(np.fft.fft(waveform_noise)))
+    return waveform_fft
 
 def get_data(filedir: str, filename: str) -> nt.NDArray:
     n_files = int(
@@ -133,6 +139,19 @@ def place_annotations(pdf_x, pdf_y, phase_dist_centers, raw_r, colors, ax):
                     xytext=(-30, 10), textcoords='offset points', fontsize=16, color=colors[i])
 
 
+def plot_dac_output(ax, waveform_fft, max_val):
+    waveform_fft = waveform_fft
+    yticks = np.linspace(0, -100, 11)
+    ylabels = [str(x) + ' dB' for x in yticks]
+    ylabels[0] = 'DAC Max Output'
+    freqs = np.linspace(-2048,2048,2**19)
+    ax.plot(freqs, 20*np.log10(waveform_fft)-max_val, linewidth=4, color='#04AA25')
+    ax.set_yticks(yticks, labels=ylabels, fontsize=18)
+    ax.grid()
+    ax.set_ylim([-100, None])
+    ax.set_xlabel('Frequency [MHz]', fontsize=16)
+    ax.tick_params(axis='both', which='major', labelsize=18)
+
 def make_r_hist_plt(ax, phase_dist_centers, raw_r, pdf_x, pdf_y):
     xticks = np.sort(np.concatenate((np.round(phase_dist_centers, decimals=1), np.array([-np.pi, -np.pi / 2]))))
 
@@ -149,7 +168,7 @@ def make_r_hist_plt(ax, phase_dist_centers, raw_r, pdf_x, pdf_y):
     ax.set_xticks(xticks, labels=xlabels, fontsize=14)
 
     place_annotations(pdf_x, pdf_y, phase_dist_centers, raw_r, ['#0015B0', '#AB1A00', '#AF49A0'], ax)
-    ax.tick_params(axis='both', which='major', labelsize=14)
+    ax.tick_params(axis='both', which='major', labelsize=18)
     ax.plot(pdf_x[0], pdf_y[0], marker='o', markevery=5, markerfacecolor='#0015B0', markeredgecolor='#0015B0', color='blue',
             linewidth=3)
     ax.fill_between(pdf_x[0], pdf_y[0], 0, color='blue', alpha=0.7)
@@ -161,5 +180,5 @@ def make_r_hist_plt(ax, phase_dist_centers, raw_r, pdf_x, pdf_y):
     ax.fill_between(pdf_x[2], pdf_y[2], 0, color='lightcoral', alpha=0.7)
 
 
-    ax.set_xlabel('Phase', fontsize=16)
+    ax.set_xlabel('Phase', fontsize=18)
     ax.set_xlim([-np.pi, -1.5])
