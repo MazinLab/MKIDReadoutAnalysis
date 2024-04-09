@@ -9,7 +9,7 @@ import scipy as sp
 import os
 import matplotlib.pyplot as plt
 import numpy as np
-from gen3_paper_analysis_helpers import *
+from helpers import *
 import matplotlib.ticker as tck
 
 

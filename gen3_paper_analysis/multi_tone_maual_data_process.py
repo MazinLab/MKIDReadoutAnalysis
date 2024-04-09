@@ -10,7 +10,7 @@ import os
 import matplotlib.pyplot as plt
 from scipy.signal import savgol_filter
 import numpy as np
-from gen3_paper_analysis_helpers import *
+from helpers import *
 import matplotlib.ticker as tck
 
 
