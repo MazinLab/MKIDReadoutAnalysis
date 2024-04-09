@@ -106,7 +106,7 @@ def get_energy_hist_points(filedir, filename, colors):
     pdfs_y = []
 
     for i, color in enumerate(colors):
-        fname = filename.replace('phase_', 'phase_' + color + '_unity')
+        fname = filename.replace('phase_', 'phase_' + color+'_')
         fname += '_processed.npz'
         data = np.load(os.path.join(filedir, fname))
         normalized_energies.append(data['normalized_energies'])

@@ -74,9 +74,10 @@ ylabels = [str(x) + ' dB' for x in yticks]
 ylabels[0] = 'DAC Max Output'
 row_0_ax[0].set_yticks(yticks, labels=ylabels, fontsize=18)
 row_1_ax[0].set_ylabel('Counts', fontsize=20)
-
-
 plt.show()
+
+
+
 print('hi')
 
 
