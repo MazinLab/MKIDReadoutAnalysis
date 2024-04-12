@@ -15,10 +15,10 @@ import matplotlib.ticker as tck
 
 colors = ['blue_405_9', 'red_663_1', 'ir_808_0']
 
-filedir = '/nfs/wheatley/work/rfsocs/j_whitefridge_data_03_30_24/r_single_res'
-filenames = [f'wf_ellison_5_739_GHz_single_tone_500dr_phase_unity',
-             f'wf_ellison_5_739_GHz_single_tone_1024dr_phase_unity',
-             f'wf_ellison_5_739_GHz_single_tone_2048dr_phase_unity',
+filedir = '/nfs/wheatley/work/rfsocs/j_whitefridge_data_04_02_24/r_multi_tone'
+filenames = [f'wf_ellison_5_739_GHz_500_tone_phase_unity',
+             f'wf_ellison_5_739_GHz_1024_tone_phase_unity',
+             f'wf_ellison_5_739_GHz_2048_tone_phase_unity',
              ]
 
 
@@ -28,11 +28,13 @@ for i, filename in enumerate(filenames):
 
         path = os.path.join(filedir, fname)+'_processed.npz'
         data = np.load(path)
-        max_location = data['max_location']
-        fwhm = data['fwhm']
+        pdf_x = data['pdf_x']
+        pdf_y = data['pdf_y']
         energies = data['normalized_energies']
-        _, _, pdf = fit_histogram(energies)
-        pdf_x = np.linspace(energies.min(), energies.max(), 1000)
-        pdf_y = pdf(pdf_x)
+
+        max_location, fwhm, pdf = fit_univariate_spline(pdf_x, pdf_y, k=3, ext=1)
+        plt.plot(pdf_x, pdf_y)
+        plt.plot(pdf_x, pdf(pdf_x))
+        plt.show()
         np.savez(path, normalized_energies=energies, max_location=max_location, fwhm=fwhm, pdf_x=pdf_x,
                  pdf_y=pdf_y)

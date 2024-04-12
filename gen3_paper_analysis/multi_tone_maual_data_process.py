@@ -14,8 +14,8 @@ from helpers import *
 import matplotlib.ticker as tck
 
 
-colors = ['blue_405_9', 'red_663_1', 'ir_808_0']
-#colors = ['red_663_1']
+#colors = ['blue_405_9', 'red_663_1', 'ir_808_0']
+colors = ['red_663_1']
 #colors = ['ir_808_0']
 
 
@@ -29,7 +29,7 @@ for i, filename in enumerate(filenames):
 
     for i, color in enumerate(colors):
         fname = filename.replace('phase_', 'phase_' + color + '_')
-        phase_data = get_data(filedir, fname)
+        phase_data = get_data(filedir, fname, exists=True)
         dark_data = get_data(filedir, filename)
         #phase_data = phase_data[:phase_data.size//4]
         phase_readout = MKIDReadout()
@@ -40,16 +40,16 @@ for i, filename in enumerate(filenames):
         plt.plot(dark_data[:1000])
         plt.plot(phase_data[:1000])
         plt.show()
-        max_location, fwhm, pdf = fit_histogram(energies)
+        max_location, fwhm, pdf = estimate_pdf(energies)
         plt.hist(energies, bins='auto')
         plt.show()
         pdf_x = np.linspace(energies.min(), energies.max(), 1000)
         pdf_y = pdf(pdf_x)
         yhat = savgol_filter(pdf_y, 101, 3) # smooth out quantization effects
-        #yhat = savgol_filter(savgol_filter(pdf_y, 131, 3), 71, 3)
-        yhat = savgol_filter(savgol_filter(pdf_y, 221, 3), 191, 3)
+        yhat = savgol_filter(savgol_filter(pdf_y, 131, 3), 101, 3)
+#        yhat = savgol_filter(savgol_filter(pdf_y, 221, 3), 191, 3)
         plt.plot(pdf_x, yhat)
         plt.show()
         fprocessedname = os.path.join(filedir, fname)+'_processed.npz'
-        np.savez(fprocessedname, normalized_energies=energies, max_location=max_location, fwhm=fwhm, pdf_x=pdf_x,
-                 pdf_y=yhat)
+        np.savez(fprocessedname, normalized_energies=energies, max_location=max_location, fwhm=fwhm, pdf_x=pdf_x[:-18],
+                 pdf_y=yhat[:-18])
