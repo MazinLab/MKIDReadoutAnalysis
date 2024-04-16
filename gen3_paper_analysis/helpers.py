@@ -154,7 +154,7 @@ def redo_hist_energy(filedir, filename, phase_dist_centers, normalized_phases, p
         return energy_dist_centers, fwhm, pdfs_x, pdfs_y
 
     except FileNotFoundError:
-        compute=True
+        compute = True
         pass
 
     lasers = np.array([405.9, 663.1, 808.0])
@@ -191,14 +191,14 @@ def redo_hist_energy(filedir, filename, phase_dist_centers, normalized_phases, p
             plt.show()
             pdfs_x.append(pdf_x)
             pdfs_y.append(pdf_y)
-        np.savez(fprocessedname, energy_dist_centers=energy_dist_centers, fwhm=fwhm, pdfs_x=pdfs_x,
+        np.savez(fprocessedname, energy_dist_centers=np.abs(energy_dist_centers), fwhm=fwhm, pdfs_x=pdfs_x,
                  pdfs_y=pdfs_y)
     raw_r = lzr_energies[:-1] / fwhm
-    return energy_dist_centers, raw_r, pdfs_x, pdfs_y
+    return energy_dist_centers, fwhm, pdfs_x, pdfs_y
 
 def get_energy_hist_points(filedir, filename, colors, advanced=True):
-    phase_dist_centers = np.empty(3)
-    phase_dist_fwhm = np.empty(3)
+    dist_centers = np.empty(3)
+    dist_fwhm = np.empty(3)
     normalized_phases = []
     pdfs_x = []
     pdfs_y = []
@@ -208,32 +208,35 @@ def get_energy_hist_points(filedir, filename, colors, advanced=True):
         fname += '_processed.npz'
         data = np.load(os.path.join(filedir, fname))
         normalized_phases.append(data['normalized_energies'])
-        phase_dist_centers[i] = -data['max_location']
-        phase_dist_fwhm[i] = data['fwhm']
+        dist_centers[i] = -data['max_location']
+        dist_fwhm[i] = data['fwhm']
         pdfs_x.append(data['pdf_x'])
         pdfs_y.append(data['pdf_y'])
 
+    # compute R
+    lasers = np.array([405.9, 663.1, 808.0])
+    hc = 1240  # eV
+    lzr_energies = hc / lasers  # eV
+
     if advanced:
-        return redo_hist_energy(filedir, filename, phase_dist_centers, normalized_phases, plot=True)
+        dist_centers, fwhm, pdfs_x, pdfs_y = redo_hist_energy(filedir, filename, dist_centers, normalized_phases, plot=False)
+        raw_r = lzr_energies / fwhm
+        return dist_centers, raw_r, pdfs_x, pdfs_y
 
     else:
-        lasers = np.array([405.9, 663.1, 808.0])
-        hc = 1240  # eV
-        energies = hc / lasers  # eV
-
-        ecal = np.polyfit(phase_dist_centers, energies, 1)
+        ecal = np.poly1d(np.polyfit(dist_centers, lzr_energies, 1))
         x = np.linspace(-3.5, -1.5, 10)
         y = ecal(x)
-        delta_e = ecal[1] * phase_dist_fwhm
-        raw_r = -energies / delta_e
+        delta_e = ecal[1] * dist_fwhm
+        raw_r = -lzr_energies / delta_e
 
-    return phase_dist_centers, raw_r, pdfs_x, pdfs_y
+    return dist_centers, raw_r, pdfs_x, pdfs_y
 
 
-def place_annotations(pdf_x, pdf_y, phase_dist_centers, raw_r, colors, ax):
+def place_annotations(pdf_x, pdf_y, dist_centers, raw_r, colors, ax):
     for i in range(len(pdf_x)):
         y = pdf_y[i].max()
-        x = phase_dist_centers[i]
+        x = dist_centers[i]
 
         ax.annotate(f'R={np.round(raw_r[i])}',
                     xy=(x, y), xycoords='data',
@@ -254,31 +257,38 @@ def plot_dac_output(ax, waveform_fft, max_val):
     ax.tick_params(axis='both', which='major', labelsize=18)
 
 
-def set_x_tick_label(phase_dist_centers):
-    xticks = np.sort(np.concatenate((np.round(phase_dist_centers, decimals=1), np.array([-np.pi, -np.pi / 2]))))
+def set_x_tick_label(dist_centers, phase, fwhm=None):
+    if phase:
+        xticks = np.sort(np.concatenate((np.round(dist_centers, decimals=1), np.array([-np.pi, -np.pi / 2]))))
 
-    xlabels = []
-    custom_labels = [r'-$\pi$', r'-$\pi$/2']
-    for i in xticks:
-        if i == -np.pi:
-            xlabels.append(custom_labels[0])
-        elif i == -np.pi / 2:
-            xlabels.append(custom_labels[1])
-        else:
-            xlabels.append(str(i))
+        xlabels = []
+        custom_labels = [r'-$\pi$', r'-$\pi$/2']
+        for i in xticks:
+            if i == -np.pi:
+                xlabels.append(custom_labels[0])
+            elif i == -np.pi / 2:
+                xlabels.append(custom_labels[1])
+            else:
+                xlabels.append(str(i))
+    else:
+        centers_nm = 1239.8 / dist_centers
+        xticks = np.sort(np.concatenate((np.round(centers_nm, decimals=1), np.array([300.0, 900.0]))))
+        xlabels = ['300.0', '405.9', '633.1', '808.0', '900.0']
     return xticks, xlabels
 
 
-def make_r_hist_plt(ax, phase_dist_centers, raw_r, pdf_x, pdf_y, xoffset=None):
+def make_r_hist_plt(ax, dist_centers, raw_r, pdf_x, pdf_y, xoffset=None, phase=False):
+    if phase:
+        if xoffset:
+            dist_centers = [x - xoffset for x in dist_centers]
+            pdf_x = [x - xoffset for x in pdf_x]
 
-    if xoffset:
-        phase_dist_centers = [x - xoffset for x in phase_dist_centers]
-        pdf_x = [x - xoffset for x in pdf_x]
+        xticks, xlabels = set_x_tick_label(dist_centers, phase)
+        ax.set_xticks(xticks, labels=xlabels, fontsize=14)
+        ax.set_xlabel('Phase', fontsize=18)
+        ax.set_xlim([-np.pi, -1.5])
 
-    xticks, xlabels = set_x_tick_label(phase_dist_centers)
-    ax.set_xticks(xticks, labels=xlabels, fontsize=14)
-
-    place_annotations(pdf_x, pdf_y, phase_dist_centers, raw_r, ['#0015B0', '#AB1A00', '#AF49A0'], ax)
+    place_annotations(pdf_x, pdf_y, dist_centers, raw_r, ['#0015B0', '#AB1A00', '#AF49A0'], ax)
     ax.tick_params(axis='both', which='major', labelsize=18)
     ax.plot(pdf_x[0], pdf_y[0], marker='o', markevery=5, markerfacecolor='#0015B0', markeredgecolor='#0015B0', color='blue',
             linewidth=3)
@@ -289,7 +299,3 @@ def make_r_hist_plt(ax, phase_dist_centers, raw_r, pdf_x, pdf_y, xoffset=None):
     ax.plot(pdf_x[2], pdf_y[2], marker='v', markevery=5, markerfacecolor='#AF49A0', markeredgecolor='#AF49A0',
             color='lightcoral', linewidth=3)
     ax.fill_between(pdf_x[2], pdf_y[2], 0, color='lightcoral', alpha=0.7)
-
-
-    ax.set_xlabel('Phase', fontsize=18)
-    ax.set_xlim([-np.pi, -1.5])

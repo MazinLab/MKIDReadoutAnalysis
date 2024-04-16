@@ -23,7 +23,7 @@ filedir = '/nfs/wheatley/work/rfsocs/j_whitefridge_data_04_02_24/r_multi_tone'
 #filenames = [f'wf_ellison_5_739_GHz_500_tone_phase_unity',
 #             f'wf_ellison_5_739_GHz_1024_tone_phase_unity',
 #             f'wf_ellison_5_739_GHz_2048_tone_phase_unity']
-filenames = [f'wf_ellison_5_739_GHz_1024_tone_phase_unity']
+filenames = [f'wf_ellison_5_739_GHz_1_tone_phase_unity']
 
 for i, filename in enumerate(filenames):
 
@@ -46,7 +46,7 @@ for i, filename in enumerate(filenames):
         pdf_x = np.linspace(energies.min(), energies.max(), 1000)
         pdf_y = pdf(pdf_x)
         yhat = savgol_filter(pdf_y, 101, 3) # smooth out quantization effects
-        yhat = savgol_filter(savgol_filter(pdf_y, 131, 3), 101, 3)
+#        yhat = savgol_filter(savgol_filter(pdf_y, 131, 3), 101, 3)
 #        yhat = savgol_filter(savgol_filter(pdf_y, 221, 3), 191, 3)
         plt.plot(pdf_x, yhat)
         plt.show()

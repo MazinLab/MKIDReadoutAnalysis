@@ -20,12 +20,13 @@ colors = ['ir_808_0']
 #colors = ['blue_405_9']
 
 
-filedir = '/nfs/wheatley/work/rfsocs/j_whitefridge_data_04_02_24/software_ofilt'
-filenames = [f'wf_ellison_5_739_GHz_500_tone_phase_unity',
-             f'wf_ellison_5_739_GHz_1024_tone_phase_unity',
-             f'wf_ellison_5_739_GHz_2048_tone_phase_unity']
-filenames = [f'wf_ellison_5_739_GHz_single_tone_fulldr_phase_unity']
-filenames=[f'wf_ellison_5_739_GHz_1024_tone_phase_unity']
+filedir = '/nfs/wheatley/work/rfsocs/j_whitefridge_data_04_15_24/adc_dr_test'
+filenames = [f'wf_ellison_5_739_GHz_single_tone_adc_attn_2048_phase_unity',
+             f'wf_ellison_5_739_GHz_single_tone_adc_attn_1024_phase_unity',
+             f'wf_ellison_5_739_GHz_single_tone_adc_attn_500_phase_unity',
+             f'wf_ellison_5_739_GHz_single_tone_adc_attn_1_phase_unity']
+#filenames = [f'wf_ellison_5_739_GHz_single_tone_fulldr_phase_unity']
+filenames=[f'wf_ellison_5_739_GHz_single_tone_adc_attn_1_phase_unity']
 
 for i, filename in enumerate(filenames):
 
@@ -47,16 +48,18 @@ for i, filename in enumerate(filenames):
             phase_data = np.convolve(phase_data, optimal_filter)
         dark_data = np.convolve(dark_data, optimal_filter)
         phase_readout = MKIDReadout()
-        phase_readout.trigger(phase_data, fs=1e6, threshold=0.0, deadtime=254)
+        phase_readout.trigger(phase_data, fs=1e6, threshold=-0.3, deadtime=254)
         phase_readout.plot_triggers(phase_data, fs=1e6, energies=True, color='red', xlim=(60000, 200000))
         plt.show()
-        energies = phase_readout.photon_energies - dark_data.mean()
-        plt.plot(dark_data[:1000])
-        plt.plot(phase_data[:1000])
+#        energies = phase_readout.photon_energies - dark_data.mean()
+        energies = phase_readout.photon_energies - phase_data[100:200000].mean()
+#        plt.plot(dark_data[:2000])
+        plt.plot(phase_data[:200000])
+        plt.plot(np.ones(200000 - 100) * phase_data[100:200000].mean())
         plt.show()
-        max_location, fwhm, pdf = estimate_pdf(energies)
         plt.hist(energies, bins='auto')
         plt.show()
+        max_location, fwhm, pdf = estimate_pdf(energies)
         pdf_x = np.linspace(energies.min(), energies.max(), 1000)
         pdf_y = pdf(pdf_x)
         yhat = pdf_y

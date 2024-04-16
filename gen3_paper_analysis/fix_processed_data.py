@@ -18,8 +18,7 @@ colors = ['blue_405_9', 'red_663_1', 'ir_808_0']
 filedir = '/nfs/wheatley/work/rfsocs/j_whitefridge_data_04_02_24/r_multi_tone'
 filenames = [f'wf_ellison_5_739_GHz_500_tone_phase_unity',
              f'wf_ellison_5_739_GHz_1024_tone_phase_unity',
-             f'wf_ellison_5_739_GHz_2048_tone_phase_unity',
-             ]
+             f'wf_ellison_5_739_GHz_2048_tone_phase_unity']
 
 
 for i, filename in enumerate(filenames):
