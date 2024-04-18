@@ -13,35 +13,27 @@ from helpers import *
 from matplotlib.gridspec import GridSpec
 import matplotlib.ticker as tck
 
-filedir = '/nfs/wheatley/work/rfsocs/j_whitefridge_data_04_02_24/software_ofilt'
-filedir = '/nfs/wheatley/work/rfsocs/j_whitefridge_data_04_15_24/adc_dr_test'
-
-dac_filenames = [f'dac_table_fulldr.npz',
-                f'dac_table_500.npz',
-                f'dac_table_1024.npz',
-                f'dac_table_2048.npz']
-titles = ['Single Tone', '500 Tones', '1024 Tones', '2048 Tones']
-
-noise = np.random.normal(0, 1000, 2 ** 19)
-
-fig, axs = plt.subplots(2,4, figsize=(30,10), sharey='row')
-
-#max_val = (20*np.log10(get_dac_fft(filedir, dac_filenames[0], noise))).max()
-#axs[0, 0].set_ylabel('DAC Output', fontsize=20)
-#for i, filename in enumerate(dac_filenames):
-#    waveform_fft = get_dac_fft(filedir, filename, noise)
-#    plot_dac_output(axs[0,i], waveform_fft, max_val)
-#    axs[0, i].set_title(titles[i], fontsize=25)
-
+filedir = '/nfs/wheatley/work/rfsocs/j_whitefridge_data_04_02_24/software_ofilt'  # Multitone (software ofilt)
 filenames = [f'wf_ellison_5_739_GHz_single_tone_fulldr_phase_unity',
              f'wf_ellison_5_739_GHz_500_tone_phase_unity',
              f'wf_ellison_5_739_GHz_1024_tone_phase_unity',
              f'wf_ellison_5_739_GHz_2048_tone_phase_unity']
 
-filenames = [f'wf_ellison_5_739_GHz_single_tone_adc_attn_2048_phase_unity',
-             f'wf_ellison_5_739_GHz_single_tone_adc_attn_1024_phase_unity',
-             f'wf_ellison_5_739_GHz_single_tone_adc_attn_500_phase_unity',
-             f'wf_ellison_5_739_GHz_single_tone_adc_attn_1_phase_unity']
+#filedir = '/nfs/wheatley/work/rfsocs/j_whitefridge_data_04_15_24/adc_dr_test'  # ADC DR Test (software ofilt)
+#filenames = [f'wf_ellison_5_739_GHz_single_tone_adc_attn_2048_phase_unity',
+#             f'wf_ellison_5_739_GHz_single_tone_adc_attn_1024_phase_unity',
+#             f'wf_ellison_5_739_GHz_single_tone_adc_attn_500_phase_unity',
+#             f'wf_ellison_5_739_GHz_single_tone_adc_attn_1_phase_unity']
+
+#filedir = '/nfs/wheatley/work/rfsocs/j_whitefridge_data_03_30_24/software_ofilt'  # DAC DR Test (software ofilt)
+#filenames = [f'wf_ellison_5_739_GHz_single_tone_fulldr_phase_unity',
+#             f'wf_ellison_5_739_GHz_single_tone_500dr_phase_unity',
+#             f'wf_ellison_5_739_GHz_single_tone_1024dr_phase_unity',
+#             f'wf_ellison_5_739_GHz_single_tone_2048dr_phase_unity']
+
+titles = ['Single Tone', '500 Tones', '1024 Tones', '2048 Tones']
+fig, axs = plt.subplots(1,4, figsize=(30,10), sharey='row')
+fig, axs = plt.subplots(1,1, figsize=(3.37,3.37), sharey='row')
 
 
 #filenames = [f'wf_ellison_5_739_GHz_single_tone_adc_attn_1_phase_unity']
@@ -61,16 +53,25 @@ xoffset = [0, 0, 0, 0]
 #make_r_hist_plt(ax, dist_centers, raw_r, pdfs_x, pdfs_y)
 #plt.show()
 #print('hi')
+#plt.show()
+filenames =  [f'wf_ellison_5_739_GHz_single_tone_fulldr_phase_unity']
 for i, filename in enumerate(filenames):
-    phase_dist_centers, raw_r, pdfs_x, pdfs_y = get_energy_hist_points(filedir, filename, colors, advanced=False)
+    phase_dist_centers, raw_r, pdfs_x, pdfs_y = get_energy_hist_points(filedir, filename, colors, advanced=True)
 #    blue_r.append(raw_r[0])
 #    red_r.append(raw_r[1])
 #    ir_r.append(raw_r[2])
-    make_r_hist_plt(axs[1,i], phase_dist_centers, raw_r, pdfs_x, pdfs_y, xoffset=xoffset[i])
-axs[1,i].set_ylim(axs[1,i].get_ylim()[0], axs[1,i].get_ylim()[1]+0.5)
+    make_r_hist_plt(axs, phase_dist_centers, raw_r, pdfs_x, pdfs_y,  rxoffset=10, ryoffset=10, rlblsz=10, xoffset=xoffset[i])
+
+axs.set_ylabel('Probability Density [nm$^{-1}$]', fontsize=12)
+axs.yaxis.get_major_formatter().set_scientific(True)
+axs.yaxis.get_major_formatter().set_powerlimits((1,2))
+axs.yaxis.offsetText.set_fontsize(8)
+axs.set_ylim(axs.get_ylim()[0], axs.get_ylim()[1]+0.005)
+
+axs.legend(loc='upper right', fontsize=8)
 
 plt.tight_layout()
-#plt.savefig('multi_hist_dac_rofilt.png')
+plt.savefig("single_r_pretty.pdf", format="pdf", bbox_inches="tight")
 plt.show()
 print('hi')
 fig, ax = plt.subplots(1,1, figsize=(30,5))
@@ -91,6 +92,6 @@ ax.tick_params(axis='both', which='major', labelsize=18)
 plt.ylabel('Energy Resolution', fontsize=20)
 plt.xlabel('N Tones Equivalent Dynamic Range', fontsize=20)
 plt.tight_layout()
-#plt.savefig('multi_res_r_line.png')
+plt.savefig("single_r_pretty.pdf", format="pdf", bbox_inches="tight")
 plt.show()
 print('hi')

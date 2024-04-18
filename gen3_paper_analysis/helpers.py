@@ -4,12 +4,14 @@ import numpy as np
 import subprocess
 from scipy.interpolate import InterpolatedUnivariateSpline
 from scipy import stats
-from scipy.signal import welch, lfilter
+from scipy.signal import welch, lfilter, savgol_filter
+
 from mkidreadoutanalysis.mkidro import MKIDReadout
 from mkidreadoutanalysis.mkidnoiseanalysis import quadratic_spline_roots
 from mkidreadoutanalysis.optimal_filters.make_filters import Calculator
 from mkidreadoutanalysis.optimal_filters.config import ConfigThing
 import matplotlib.pyplot as plt
+
 
 
 def get_dac_fft(filedir, filename, noise):
@@ -19,12 +21,12 @@ def get_dac_fft(filedir, filename, noise):
     waveform_fft = np.abs(np.fft.fftshift(np.fft.fft(waveform_noise)))
     return waveform_fft
 
-def get_data(filedir: str, filename: str, exists=False) -> nt.NDArray:
+def get_data(filedir: str, filename: str, skip=2) -> nt.NDArray:
     n_files = int(
         subprocess.check_output(f"ls -d {os.path.join(filedir, filename) + '*'} -1 | wc -l", shell=True, text=True)[
         :-1])
-    if exists:
-        n_files -= 1
+    if skip:
+        n_files -= skip
     if n_files == 0:
         raise FileNotFoundError('No files found for given dir and fname.')
     fnames = []
@@ -143,8 +145,8 @@ def compute_ofilt(phase_data):
     return ofc
 
 
-def redo_hist_energy(filedir, filename, phase_dist_centers, normalized_phases, plot=True):
-    fprocessedname = os.path.join(filedir, filename) + '_ecal_processed.npz'
+def redo_hist_energy(filedir, filename, phase_dist_centers, normalized_phases, plot=False):
+    fprocessedname = os.path.join(filedir, filename) + '_ecal_processed_nm.npz'
     try:
         data = np.load(fprocessedname)
         energy_dist_centers = data['energy_dist_centers']
@@ -182,18 +184,25 @@ def redo_hist_energy(filedir, filename, phase_dist_centers, normalized_phases, p
         pdfs_y = []
         for i, x in enumerate(normalized_phases):
             energies = ecal(x)
-            energy_dist_centers[i], fwhm[i], pdf = estimate_pdf(energies)
-            plt.hist(energies, bins='auto')
+            energies_nm = 1239.8/energies
+            energy_dist_centers[i], fwhm[i], pdf = estimate_pdf(energies_nm)
+            plt.hist(energies_nm, bins='auto')
             plt.show()
-            pdf_x = np.linspace(energies.min(), energies.max(), 1000)
+            pdf_x = np.linspace(energies_nm.min(), energies_nm.max(), 1000)
             pdf_y = pdf(pdf_x)
-            plt.plot(pdf_x, pdf_y)
+            if i == 0:
+                yhat = savgol_filter(savgol_filter(pdf_y, 81, 3), 31, 3)
+            elif i == 1:
+                yhat = savgol_filter(savgol_filter(pdf_y, 221, 3), 291, 3)
+            else:
+                yhat = savgol_filter(savgol_filter(savgol_filter(pdf_y, 351, 3), 351, 3), 301, 3)
+            plt.plot(pdf_x, yhat)
             plt.show()
             pdfs_x.append(pdf_x)
-            pdfs_y.append(pdf_y)
+            pdfs_y.append(yhat)
         np.savez(fprocessedname, energy_dist_centers=np.abs(energy_dist_centers), fwhm=fwhm, pdfs_x=pdfs_x,
                  pdfs_y=pdfs_y)
-    raw_r = lzr_energies[:-1] / fwhm
+    raw_r = (1239.8/lzr_energies[:-1]) / fwhm
     return energy_dist_centers, fwhm, pdfs_x, pdfs_y
 
 def get_energy_hist_points(filedir, filename, colors, advanced=True):
@@ -219,9 +228,10 @@ def get_energy_hist_points(filedir, filename, colors, advanced=True):
     lzr_energies = hc / lasers  # eV
 
     if advanced:
-        dist_centers, fwhm, pdfs_x, pdfs_y = redo_hist_energy(filedir, filename, dist_centers, normalized_phases, plot=False)
-        raw_r = lzr_energies / fwhm
-        return dist_centers, raw_r, pdfs_x, pdfs_y
+        dist_centers_nm, fwhm_nm, pdfs_x, pdfs_y = redo_hist_energy(filedir, filename, dist_centers, normalized_phases, plot=False)
+        lzr_energies_nm = 1239.8/lzr_energies
+        raw_r = lzr_energies_nm / fwhm_nm
+        return dist_centers_nm, raw_r, pdfs_x, pdfs_y
 
     else:
         ecal = np.poly1d(np.polyfit(dist_centers, lzr_energies, 1))
@@ -233,14 +243,14 @@ def get_energy_hist_points(filedir, filename, colors, advanced=True):
     return dist_centers, raw_r, pdfs_x, pdfs_y
 
 
-def place_annotations(pdf_x, pdf_y, dist_centers, raw_r, colors, ax):
+def place_annotations(pdf_x, pdf_y, dist_centers, raw_r, colors, rxoffset, ryoffset, rlblsz, ax):
     for i in range(len(pdf_x)):
         y = pdf_y[i].max()
         x = dist_centers[i]
 
         ax.annotate(f'R={np.round(raw_r[i])}',
                     xy=(x, y), xycoords='data',
-                    xytext=(-30, 10), textcoords='offset points', fontsize=16, color=colors[i])
+                    xytext=(-rxoffset, ryoffset), textcoords='offset points', fontsize=rlblsz, color=colors[i])
 
 
 def plot_dac_output(ax, waveform_fft, max_val):
@@ -250,11 +260,11 @@ def plot_dac_output(ax, waveform_fft, max_val):
     ylabels[0] = 'DAC Max Output'
     freqs = np.linspace(-2048,2048,2**19)
     ax.plot(freqs, 20*np.log10(waveform_fft)-max_val, linewidth=4, color='#04AA25')
-    ax.set_yticks(yticks, labels=ylabels, fontsize=18)
+    ax.set_yticks(yticks, labels=ylabels, fontsize=8)
     ax.grid()
     ax.set_ylim([-100, None])
-    ax.set_xlabel('Frequency [MHz]', fontsize=16)
-    ax.tick_params(axis='both', which='major', labelsize=18)
+    ax.set_xlabel('Frequency [MHz]', fontsize=12)
+    ax.tick_params(axis='both', which='major', labelsize=8)
 
 
 def set_x_tick_label(dist_centers, phase, fwhm=None):
@@ -277,25 +287,28 @@ def set_x_tick_label(dist_centers, phase, fwhm=None):
     return xticks, xlabels
 
 
-def make_r_hist_plt(ax, dist_centers, raw_r, pdf_x, pdf_y, xoffset=None, phase=False):
+def make_r_hist_plt(ax, dist_centers, raw_r, pdf_x, pdf_y,  rxoffset, ryoffset, rlblsz, xoffset=None, phase=False):
     if phase:
         if xoffset:
             dist_centers = [x - xoffset for x in dist_centers]
             pdf_x = [x - xoffset for x in pdf_x]
 
         xticks, xlabels = set_x_tick_label(dist_centers, phase)
-        ax.set_xticks(xticks, labels=xlabels, fontsize=14)
-        ax.set_xlabel('Phase', fontsize=18)
+        ax.set_xticks(xticks, labels=xlabels, fontsize=8)
+        ax.set_xlabel('Phase', fontsize=12)
         ax.set_xlim([-np.pi, -1.5])
+    else:
+        ax.set_xlim(350, 1050)
+        ax.set_xlabel('Wavelength [nm]', fontsize=12)
 
-    place_annotations(pdf_x, pdf_y, dist_centers, raw_r, ['#0015B0', '#AB1A00', '#AF49A0'], ax)
-    ax.tick_params(axis='both', which='major', labelsize=18)
-    ax.plot(pdf_x[0], pdf_y[0], marker='o', markevery=5, markerfacecolor='#0015B0', markeredgecolor='#0015B0', color='blue',
-            linewidth=3)
+    place_annotations(pdf_x, pdf_y, dist_centers, raw_r, ['#0015B0', '#AC5818', '#9C2419'], rxoffset, ryoffset, rlblsz, ax)
+    ax.tick_params(axis='both', which='major', labelsize=8)
+    ax.plot(pdf_x[0], pdf_y[0], marker='o', markevery=20, markersize=3, markerfacecolor='#0015B0', markeredgecolor='#0015B0', color='blue',
+            linewidth=2, label='Blue 405.9 nm')
     ax.fill_between(pdf_x[0], pdf_y[0], 0, color='blue', alpha=0.7)
-    ax.plot(pdf_x[1], pdf_y[1], marker='d', markevery=5, markerfacecolor='#AB1A00', markeredgecolor='#AB1A00', color='red',
-            linewidth=3)
-    ax.fill_between(pdf_x[1], pdf_y[1], 0, color='red', alpha=0.7)
-    ax.plot(pdf_x[2], pdf_y[2], marker='v', markevery=5, markerfacecolor='#AF49A0', markeredgecolor='#AF49A0',
-            color='lightcoral', linewidth=3)
-    ax.fill_between(pdf_x[2], pdf_y[2], 0, color='lightcoral', alpha=0.7)
+    ax.plot(pdf_x[1], pdf_y[1], marker='d', markevery=20, markersize=3, markerfacecolor='#FF9300', markeredgecolor='#FF9300', color='#FF9300',
+            linewidth=2, label='Red 663.1 nm')
+    ax.fill_between(pdf_x[1], pdf_y[1], 0, color='#FF9300', alpha=0.7)
+    ax.plot(pdf_x[2], pdf_y[2], marker='v', markevery=20, markersize=3, markerfacecolor='#AB1A00', markeredgecolor='#AB1A00',
+            color='red', linewidth=2, label='IR 808.0 nm')
+    ax.fill_between(pdf_x[2], pdf_y[2], 0, color='red', alpha=0.7)

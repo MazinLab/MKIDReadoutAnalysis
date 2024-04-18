@@ -16,7 +16,7 @@ import matplotlib.ticker as tck
 
 colors = ['red_663_1', 'blue_405_9', 'ir_808_0']
 #colors = ['red_663_1']
-colors = ['ir_808_0']
+#colors = ['ir_808_0']
 #colors = ['blue_405_9']
 
 
@@ -27,6 +27,15 @@ filenames = [f'wf_ellison_5_739_GHz_single_tone_adc_attn_2048_phase_unity',
              f'wf_ellison_5_739_GHz_single_tone_adc_attn_1_phase_unity']
 #filenames = [f'wf_ellison_5_739_GHz_single_tone_fulldr_phase_unity']
 filenames=[f'wf_ellison_5_739_GHz_single_tone_adc_attn_1_phase_unity']
+
+filedir = '/nfs/wheatley/work/rfsocs/j_whitefridge_data_03_30_24/software_ofilt'  # DAC DR Test (software ofilt)
+filenames = [f'wf_ellison_5_739_GHz_single_tone_fulldr_phase_unity',
+             f'wf_ellison_5_739_GHz_single_tone_500dr_phase_unity',
+             f'wf_ellison_5_739_GHz_single_tone_1024dr_phase_unity',
+             f'wf_ellison_5_739_GHz_single_tone_2048dr_phase_unity']
+
+filenames=[f'wf_ellison_5_739_GHz_single_tone_2048dr_phase_unity']
+
 
 for i, filename in enumerate(filenames):
 
@@ -48,12 +57,12 @@ for i, filename in enumerate(filenames):
             phase_data = np.convolve(phase_data, optimal_filter)
         dark_data = np.convolve(dark_data, optimal_filter)
         phase_readout = MKIDReadout()
-        phase_readout.trigger(phase_data, fs=1e6, threshold=-0.3, deadtime=254)
+        phase_readout.trigger(phase_data, fs=1e6, threshold=-1.5, deadtime=254)
         phase_readout.plot_triggers(phase_data, fs=1e6, energies=True, color='red', xlim=(60000, 200000))
         plt.show()
 #        energies = phase_readout.photon_energies - dark_data.mean()
         energies = phase_readout.photon_energies - phase_data[100:200000].mean()
-#        plt.plot(dark_data[:2000])
+#        plt.plot(dark_data[:200000])
         plt.plot(phase_data[:200000])
         plt.plot(np.ones(200000 - 100) * phase_data[100:200000].mean())
         plt.show()
